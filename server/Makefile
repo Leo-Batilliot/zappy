@@ -6,7 +6,7 @@ RESET	= \033[0m
 NAME	= zappy_server
 
 CXX			= g++
-CXXFLAGS	= -std=c++17 -Wall -Wextra -Iinclude -Isrc
+CXXFLAGS	= -std=c++20 -Wall -Wextra -Iinclude -Isrc
 LDFLAGS		=
 
 # make DEBUG=1
