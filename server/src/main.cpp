@@ -1,20 +1,28 @@
 #include <iostream>
-#include <string>
+#include <cstring>
+#include "args/Parser.hpp"
+#include "server/Server.hpp"
+#include "Error.hpp"
 
-static void print_usage(const char *bin)
-{
-    std::cout << "USAGE: " << bin
-              << " -p port -x width -y height -n name1 name2 ..."
-              << " -c clientsNb -f freq\n";
+static bool wantsHelp(int argc, char **argv) {
+    for (int i = 1; i < argc; ++i)
+        if (std::strcmp(argv[i], "--help") == 0)
+            return true;
+    return false;
 }
 
-int main(int argc, char **argv)
-{
-    if (argc >= 2 && std::string(argv[1]) == "-help") {
-        print_usage(argv[0]);
+int main(int argc, char **argv) {
+    if (wantsHelp(argc, argv)) {
+        Parser::printUsage();
         return 0;
     }
-    std::cout << "zappy_server: bootstrap OK (" << argc - 1
-              << " argument(s))\n";
+    try {
+        Config cfg = Parser::parse(argc, argv);
+        Server server(cfg);
+        server.run();
+    } catch (const Error &e) {
+        std::cerr << e.what() << std::endl;
+        return 84;
+    }
     return 0;
 }
