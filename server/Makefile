@@ -19,6 +19,9 @@ SRC	= 	src/main.cpp			\
 		src/args/Parser.cpp		\
 		src/server/Server.cpp	\
 		src/server/Client.cpp	\
+		src/time/Scheduler.cpp	\
+		src/game/World.cpp		\
+		src/game/GameState.cpp	\
 
 OBJ	= $(SRC:src/%.cpp=$(OBJDIR)/%.o)
 DEP	= $(OBJ:.o=.d)

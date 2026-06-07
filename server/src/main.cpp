@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstring>
+#include <csignal>
 #include "args/Parser.hpp"
 #include "server/Server.hpp"
 #include "Error.hpp"
@@ -16,6 +17,7 @@ int main(int argc, char **argv) {
         Parser::printUsage();
         return 0;
     }
+    signal(SIGPIPE, SIG_IGN);
     try {
         Config cfg = Parser::parse(argc, argv);
         Server server(cfg);
