@@ -100,7 +100,13 @@ void Server::handleClient(int fd)
         removeClient(fd);
         return;
     }
-    _clients.at(fd).appendToReadBuffer(buffer, static_cast<std::size_t>(bytes));
+    Client &c = _clients.at(fd);
+    c.appendToReadBuffer(buffer, static_cast<std::size_t>(bytes));
+
+    if (c.readBufferSize() > 65536) {
+        removeClient(fd);
+        return;
+    }
 
     while (_clients.count(fd) != 0) {
         std::optional<std::string> line = _clients.at(fd).extractLine();
@@ -149,8 +155,14 @@ void Server::doHandshake(Client &client, const std::string &teamName)
 void Server::flushWrites(Client &client)
 {
     const std::string &data = client.writeBuffer();
-    ssize_t sent = send(client.fd(), data.data(), data.size(), 0);
+    ssize_t sent = send(client.fd(), data.data(), data.size(), MSG_NOSIGNAL);
 
+    if (sent < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return;
+        removeClient(client.fd());
+        return;
+    }
     if (sent > 0)
         client.consumeWritten(static_cast<std::size_t>(sent));
     syncPollOut(client);
