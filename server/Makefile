@@ -22,6 +22,7 @@ SRC	= 	src/main.cpp			\
 		src/time/Scheduler.cpp	\
 		src/game/World.cpp		\
 		src/game/GameState.cpp	\
+		src/protocol/GuiProtocol.cpp	\
 
 OBJ	= $(SRC:src/%.cpp=$(OBJDIR)/%.o)
 DEP	= $(OBJ:.o=.d)

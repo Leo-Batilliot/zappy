@@ -4,7 +4,7 @@
 #include "game/Types.hpp"
 
 struct Tile {
-    Inventory       resources{};
+    Inventory resources{};
     std::vector<int> players;
     std::vector<int> eggs;
 };
