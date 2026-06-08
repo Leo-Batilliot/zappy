@@ -22,6 +22,11 @@ void Client::appendToReadBuffer(const char *data, std::size_t size)
     _readBuffer.append(data, size);
 }
 
+std::size_t Client::readBufferSize() const
+{
+    return _readBuffer.size();
+}
+
 std::optional<std::string> Client::extractLine()
 {
     std::size_t pos = _readBuffer.find('\n');

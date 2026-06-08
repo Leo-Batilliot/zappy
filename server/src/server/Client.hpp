@@ -19,6 +19,7 @@ public:
     void setState(State state);
 
     void appendToReadBuffer(const char *data, std::size_t size);
+    std::size_t readBufferSize() const;
     std::optional<std::string> extractLine();
 
     void queueWrite(const std::string &data);
