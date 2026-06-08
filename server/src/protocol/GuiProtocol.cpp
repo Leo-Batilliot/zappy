@@ -74,14 +74,14 @@ void GuiProtocol::sendInitialState(Client &gui, const GameState &state, int freq
 {
     const World &w = state.world();
 
-    gui.queueWrite("msz " + std::to_string(w.width) + " " + std::to_string(w.height) + "\n");
+    gui.queueWrite("msz " + std::to_string(w.width()) + " " + std::to_string(w.height()) + "\n");
     gui.queueWrite("sgt " + std::to_string(freq) + "\n");
     for (const auto &[name, team] : state.teams()) {
         (void)name;
         gui.queueWrite("tna " + team.name + "\n");
     }
-    for (int y = 0; y < w.height; ++y)
-        for (int x = 0; x < w.width; ++x)
+    for (int y = 0; y < w.height(); ++y)
+        for (int x = 0; x < w.width(); ++x)
             gui.queueWrite(fmtBct(x, y, tileResources(w.at(x, y))));
     for (const auto &[id, p] : state.players()) {
         (void)id;
@@ -107,8 +107,8 @@ void GuiProtocol::bct(Client &gui, int x, int y, const Tile &t)
 
 void GuiProtocol::bctAll(Client &gui, const World &w)
 {
-    for (int y = 0; y < w.height; ++y)
-        for (int x = 0; x < w.width; ++x)
+    for (int y = 0; y < w.height(); ++y)
+        for (int x = 0; x < w.width(); ++x)
             gui.queueWrite(fmtBct(x, y, tileResources(w.at(x, y))));
 }
 

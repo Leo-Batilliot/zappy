@@ -129,7 +129,8 @@ Contenu d'une case de la carte :
 Carte torique (les déplacements s'enroulent aux bords). N'expose que des
 déclarations ; l'implémentation est dans `World.cpp`.
 
-- `width`, `height`, `grid` : dimensions et tableau de `Tile`.
+- `width()`, `height()` : dimensions de la carte (la grille de `Tile` reste
+  interne).
 - `at(x, y)` : accès à une case avec wrap torique.
 - `wrap(x, y)` : normalise des coordonnées dans la carte.
 - `step(pos, orient, n)` : avance de `n` pas dans une orientation.
@@ -138,7 +139,7 @@ déclarations ; l'implémentation est dans `World.cpp`.
 - `placePlayer` / `removePlayer` / `movePlayer` : maintien des joueurs sur les
   cases.
 - `placeEgg` / `removeEgg` : maintien des oeufs sur les cases.
-- `initResources(seed)` : génération initiale des ressources.
+- `initResources()` : génération initiale des ressources.
 - `refill()` : ré-approvisionnement périodique ; renvoie les cases modifiées.
 
 ### `Player`
@@ -185,7 +186,9 @@ Création / suppression :
 Accesseurs :
 
 - `player(id)`, `egg(id)`, `team(name)`, `world()`.
-- `isTeam(name)`, `hasFreeSlot(name)`.
+- `hasPlayer(id)`, `hasEgg(id)`, `isTeam(name)`, `hasFreeSlot(name)`.
+- `playerIdByFd(fd)` : identifiant du joueur associé à une connexion (`-1` si
+  aucun).
 
 Collections en lecture seule (utilisées notamment par
 `GuiProtocol::sendInitialState`) :
@@ -195,8 +198,6 @@ Collections en lecture seule (utilisées notamment par
 État de fin de partie :
 
 - `finished`, `winner`.
-
-Générateurs d'identifiants : `nextPlayerId()`, `nextEggId()`.
 
 ---
 
