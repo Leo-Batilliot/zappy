@@ -1,6 +1,8 @@
 import sys
 from network import NetworkClient
-from state import BotState
+import pathfinding
+from strategy import Strategy
+from state import Inventory
 
 class ZappyBot:
     def __init__(self, host: str, port: int, team_name: str):
@@ -12,7 +14,9 @@ class ZappyBot:
         self.pending_commands = 0
         self.command_queue = []
 
-        self.state = BotState()
+        self.sent_commands = []
+        self.inventory = Inventory()
+        self.strategy = Strategy()
 
     def run(self):
         """Lance le bot et effectue la connexion initiale."""
@@ -75,6 +79,8 @@ class ZappyBot:
             cmd = self.command_queue.pop(0)
             self.network.send_line(cmd)
             self.pending_commands += 1
+            command_type = cmd.split()[0].lower()
+            self.sent_commands.append(command_type)
             print(f"[OUT] -> {cmd}")
 
     def _handle_server_message(self, message: str):
@@ -93,11 +99,56 @@ class ZappyBot:
         if self.pending_commands > 0:
             self.pending_commands -= 1
 
-        if message.startswith("[") and message.endswith("]"):
-            if any(char.isdigit() for char in message):
-                self.state.parse_inventory(message)
-                print(f"[ÉTAT] Nourriture actuelle : {self.state.inventory['food']}")
+        if not self.sent_commands:
+            return
+
+        expected_command = self.sent_commands.pop(0)
+
+        if expected_command == "inventory":
+            self._update_inventory_from_string(message)
+            self.strategy.update(self.inventory)
+            self._queue_command("Look")
+
+        elif expected_command == "look":
+            tiles = pathfinding.parse_look(message)
+            self._decide_next_move(tiles)
+
+        elif expected_command == "take":
+            if message == "ok":
+                self._queue_command("Inventory")
             else:
-                self.state.parse_look(message)
-                print(f"[ÉTAT] Vision sur ma case : {self.state.vision[0]}")
-  
+                self._queue_command("Look")
+                
+        elif expected_command in ["forward", "right", "left"]:
+            pass
+    
+    def _update_inventory_from_string(self, message: str):
+        """Parse le message et met à jour la dataclass Inventory."""
+        clean_msg = message.strip(" []")
+        if not clean_msg:
+            return
+            
+        for item in clean_msg.split(","):
+            parts = item.strip().split()
+            if len(parts) == 2:
+                resource_name = parts[0]
+                amount = int(parts[1])
+                if hasattr(self.inventory, resource_name):
+                    setattr(self.inventory, resource_name, amount)
+
+    def _decide_next_move(self, tiles):
+        """Demande au cerveau (Strategy) et aux yeux (Pathfinding) quoi faire."""
+        target = self.strategy.target_resource(self.inventory)
+        print(f"[STRATÉGIE] Objectif actuel : {target}")
+        
+        if target:
+            nearest_index = pathfinding.find_nearest(tiles, target)
+            
+            if nearest_index is not None:
+                moves = pathfinding.moves_to_tile(nearest_index)
+                for move in moves:
+                    self._queue_command(move)
+                self._queue_command(f"Take {target}")
+            else:
+                self._queue_command("Forward")
+                self._queue_command("Look")
