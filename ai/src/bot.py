@@ -3,6 +3,7 @@ from network import NetworkClient
 import pathfinding
 from strategy import Strategy
 from state import Inventory
+from state import ActionState
 
 class ZappyBot:
     def __init__(self, host: str, port: int, team_name: str):
@@ -82,45 +83,6 @@ class ZappyBot:
             command_type = cmd.split()[0].lower()
             self.sent_commands.append(command_type)
             print(f"[OUT] -> {cmd}")
-
-    def _handle_server_message(self, message: str):
-        """Parse et dispatche les messages reçus du serveur."""
-        print(f"[IN]  <- {message}")
-        if message == "dead":
-            print("[IA] Le drone est mort de faim. Fin de la partie.")
-            sys.exit(0)
-        elif message.startswith("message"):
-            print("[IA] J'ai entendu un broadcast !")
-            return
-        elif message.startswith("eject:"):
-            print("[IA] On m'a poussé !")
-            return
-            
-        if self.pending_commands > 0:
-            self.pending_commands -= 1
-
-        if not self.sent_commands:
-            return
-
-        expected_command = self.sent_commands.pop(0)
-
-        if expected_command == "inventory":
-            self._update_inventory_from_string(message)
-            self.strategy.update(self.inventory)
-            self._queue_command("Look")
-
-        elif expected_command == "look":
-            tiles = pathfinding.parse_look(message)
-            self._decide_next_move(tiles)
-
-        elif expected_command == "take":
-            if message == "ok":
-                self._queue_command("Inventory")
-            else:
-                self._queue_command("Look")
-                
-        elif expected_command in ["forward", "right", "left"]:
-            pass
     
     def _update_inventory_from_string(self, message: str):
         """Parse le message et met à jour la dataclass Inventory."""
@@ -152,3 +114,131 @@ class ZappyBot:
             else:
                 self._queue_command("Forward")
                 self._queue_command("Look")
+
+    def _handle_server_message(self, message: str) -> None:
+        """
+        Point d'entrée de tous les messages provenant du serveur.
+        Aiguille le message vers le gestionnaire d'événements asynchrones ou le parseur de commandes.
+        """
+        print(f"[IN]  <- {message}")
+
+        # 1. Interception prioritaire des événements asynchrones
+        if self._is_async_event(message):
+            self._handle_async_event(message)
+            return
+            
+        # 2. Gestion de la file d'attente réseau
+        if self.pending_commands > 0:
+            self.pending_commands -= 1
+
+        if not self.sent_commands:
+            print(f"[Alerte] Message inattendu reçu (aucune commande en attente) : {message}")
+            return
+
+        # 3. Gestion de la réponse synchrone
+        expected_command = self.sent_commands.pop(0)
+        self._dispatch_command_response(expected_command, message)
+
+    def _is_async_event(self, message: str) -> bool:
+        """Détermine si le message serveur est un événement non sollicité."""
+        return message == "dead" or message.startswith("message") or message.startswith("eject:")
+
+    def _handle_async_event(self, message: str) -> None:
+        """Traite les événements asynchrones (Mort, Broadcast, Éjection)."""
+        if message == "dead":
+            print("[IA] Le drone est mort de faim. Fin de la partie.")
+            sys.exit(0)
+            
+        elif message.startswith("eject:"):
+            print("[IA] Alerte : Déplacement forcé par une éjection !")
+            ####### TO DO : réagir à l'éjection ########
+            
+        elif message.startswith("message"):
+            self._parse_broadcast(message)
+
+    def _parse_broadcast(self, message: str) -> None:
+        """Extrait la direction et le texte d'un message broadcasté."""
+        content = message[8:]
+        parts = content.split(",", 1)
+        
+        if len(parts) == 2:
+            try:
+                direction = int(parts[0].strip())
+                texte = parts[1].strip()
+                print(f"[RADIO] J'entends '{texte}' de la direction {direction}")
+                ####### TO DO : self.strategy.on_broadcast_received(direction, texte) ########
+            except ValueError:
+                pass
+
+    def _dispatch_command_response(self, command: str, message: str) -> None:
+        """
+        Traite la réponse du serveur en fonction de la commande envoyée précédemment.
+        """
+        if command == "inventory":
+            self._handle_inventory_response(message)
+        elif command == "look":
+            self._handle_look_response(message)
+        elif command == "take":
+            self._handle_take_response(message)
+        elif command == "incantation":
+            self._handle_incantation_response(message)
+        elif command == "connect_nbr":
+            self._handle_connect_nbr_response(message)
+        elif command == "fork":
+            self._handle_fork_response(message)
+        elif command in ["forward", "right", "left"]:
+            pass
+
+    def _handle_inventory_response(self, message: str) -> None:
+        """Met à jour l'état FSM et déclenche la prochaine phase d'observation."""
+        self._update_inventory_from_string(message)
+        self.strategy.update(self.inventory)
+        self._queue_command("Look")
+
+    def _handle_look_response(self, message: str) -> None:
+        """Transmet le champ de vision à l'algorithme de pathfinding."""
+        tiles = pathfinding.parse_look(message)
+        self._decide_next_move(tiles)
+
+    def _handle_take_response(self, message: str) -> None:
+        """Vérifie le succès de la collecte et ajuste la séquence d'actions."""
+        if message == "ok":
+            self._queue_command("Inventory")
+        else:
+            self._queue_command("Look")
+
+    def _handle_incantation_response(self, message: str) -> None:
+        """
+        Gère le flux complexe du rituel d'élévation, nécessitant l'interception
+        de la réponse initiale d'amorçage puis du résultat final asynchrone.
+        """
+        if message == "ko":
+            print("[IA] L'incantation a échoué aux prérequis (ko).")
+            from state import ActionState
+            self.strategy.state = ActionState.COLLECT 
+            self._queue_command("Look")
+            
+        elif message == "Elevation underway":
+            print("[IA] Rituel amorcé... attente de la résolution du serveur.")
+            self.sent_commands.insert(0, "incantation")
+            self.pending_commands += 1 
+            
+        elif message.startswith("Current level"):
+            print(f"[IA] RITUEL RÉUSSI ! {message}")
+            self.strategy.on_level_up()
+            self._queue_command("Look")
+
+    def _handle_connect_nbr_response(self, message: str) -> None:
+        """Met à jour les informations sur la capacité d'accueil de l'équipe."""
+        try:
+            self.client_num = int(message)
+            print(f"[ÉTAT] Places libres pour l'équipe : {self.client_num}")
+        except ValueError:
+            pass
+
+    def _handle_fork_response(self, message: str) -> None:
+        """Analyse le succès ou l'échec de la ponte d'un œuf."""
+        if message == "ok":
+            print("[IA] Ponte validée, nouveau slot imminent.")
+        else:
+            print("[IA] Échec de la ponte (ko).")
