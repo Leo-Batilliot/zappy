@@ -7,12 +7,7 @@ NAME	= zappy_gui
 
 CXX			= g++
 CXXFLAGS	= -std=c++17 -Wall -Wextra \
-			  -Isrc \
-			  -Isrc/app \
-			  -Isrc/network \
-			  -Isrc/parser \
-			  -Isrc/renderer \
-			  -Isrc/world
+			  -Isrc
 LDFLAGS		= -lsfml-graphics -lsfml-window -lsfml-system
 
 # make DEBUG=1
@@ -25,8 +20,14 @@ SRC		= src/main.cpp \
 		  src/app/App.cpp \
 		  src/network/Network.cpp \
 		  src/parser/Parser.cpp \
+		  src/parser/ParserHandlers.cpp \
 		  src/renderer/Renderer.cpp \
-		  src/world/World.cpp
+		  src/renderer/RendererEvents.cpp \
+		  src/renderer/RendererDraw.cpp \
+		  src/renderer/RendererPanel.cpp \
+		  src/world/World.cpp \
+		  src/world/WorldPlayers.cpp \
+		  src/world/WorldGame.cpp
 OBJ		= $(SRC:src/%.cpp=$(OBJDIR)/%.o)
 DEP		= $(OBJ:.o=.d)
 

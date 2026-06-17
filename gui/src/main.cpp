@@ -7,7 +7,7 @@
 
 #include <iostream>
 #include <string>
-#include "App.hpp"
+#include "app/App.hpp"
 
 static void print_usage(const char *bin)
 {

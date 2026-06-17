@@ -5,14 +5,16 @@
 ** Network.cpp
 */
 
-#include "Network.hpp"
+#include "network/Network.hpp"
 
+#include <array>
 #include <iostream>
-#include <cstring>
+#include <memory>
 #include <cerrno>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netdb.h>
 
 Network::Network() : _fd(-1)
@@ -27,20 +29,19 @@ Network::~Network()
 
 bool Network::connectTo(const std::string &host, const std::string &port)
 {
-    struct addrinfo hints;
-    struct addrinfo *result = nullptr;
-
-    std::memset(&hints, 0, sizeof(hints));
+    addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    int status = getaddrinfo(host.c_str(), port.c_str(), &hints, &result);
+    addrinfo *raw = nullptr;
+    int status = getaddrinfo(host.c_str(), port.c_str(), &hints, &raw);
     if (status != 0) {
         std::cerr << "getaddrinfo: " << gai_strerror(status) << std::endl;
         return false;
     }
+    std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> result(raw, freeaddrinfo);
 
-    for (struct addrinfo *p = result; p != nullptr; p = p->ai_next) {
+    for (auto p = result.get(); p != nullptr; p = p->ai_next) {
         _fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
         if (_fd == -1)
             continue;
@@ -49,16 +50,25 @@ bool Network::connectTo(const std::string &host, const std::string &port)
         close(_fd);
         _fd = -1;
     }
-    freeaddrinfo(result);
 
     if (_fd == -1) {
         std::cerr << "Connexion impossible a " << host << ":" << port << std::endl;
         return false;
     }
 
-    char c;
-    while (recv(_fd, &c, 1, 0) == 1 && c != '\n')
-        ;
+    timeval welcomeTimeout{};
+    welcomeTimeout.tv_sec = 5;
+    setsockopt(_fd, SOL_SOCKET, SO_RCVTIMEO, &welcomeTimeout,
+        sizeof(welcomeTimeout));
+
+    char c = '\0';
+    while (c != '\n') {
+        if (recv(_fd, &c, 1, 0) != 1) {
+            std::cerr << "Le serveur n'a pas envoye WELCOME." << std::endl;
+            disconnect();
+            return false;
+        }
+    }
 
     int flags = fcntl(_fd, F_GETFL, 0);
     fcntl(_fd, F_SETFL, flags | O_NONBLOCK);
@@ -69,27 +79,46 @@ bool Network::sendLine(const std::string &line)
 {
     if (_fd == -1)
         return false;
-    std::string payload = line + "\n";
-    ssize_t sent = send(_fd, payload.c_str(), payload.size(), 0);
-    return sent == static_cast<ssize_t>(payload.size());
+    _sendBuffer += line;
+    _sendBuffer += '\n';
+    flushSend();
+    return true;
+}
+
+void Network::flushSend()
+{
+    while (_fd != -1 && !_sendBuffer.empty()) {
+        ssize_t sent = send(_fd, _sendBuffer.data(), _sendBuffer.size(),
+            MSG_NOSIGNAL);
+        if (sent > 0) {
+            _sendBuffer.erase(0, static_cast<std::size_t>(sent));
+            continue;
+        }
+        if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            break;
+        disconnect();
+    }
+}
+
+void Network::disconnect()
+{
+    if (_fd != -1) {
+        close(_fd);
+        _fd = -1;
+    }
 }
 
 void Network::poll()
 {
     if (_fd == -1)
         return;
-
-    char chunk[4096];
+    flushSend();
+    std::array<char, 4096> chunk{};
     ssize_t n;
-
-    while ((n = recv(_fd, chunk, sizeof(chunk), 0)) > 0)
-        _buffer.append(chunk, static_cast<std::size_t>(n));
-
-    if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
-        close(_fd);
-        _fd = -1;
-    }
-
+    while ((n = recv(_fd, chunk.data(), chunk.size(), 0)) > 0)
+        _buffer.append(chunk.data(), static_cast<std::size_t>(n));
+    if (n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK))
+        disconnect();
     std::size_t pos;
     while ((pos = _buffer.find('\n')) != std::string::npos) {
         _messages.push(_buffer.substr(0, pos));

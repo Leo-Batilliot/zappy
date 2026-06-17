@@ -7,23 +7,65 @@
 
 #pragma once
 
+#include <string>
+#include <string_view>
 #include <SFML/Graphics.hpp>
-#include "World.hpp"
+#include "world/World.hpp"
+
+struct UiAction {
+    enum class Type {
+        NONE,
+        SPEED_UP,
+        SPEED_DOWN,
+        SELECT_PLAYER
+    };
+
+    Type type = Type::NONE;
+    int playerId = -1;
+};
 
 class Renderer {
 public:
     Renderer(unsigned int width = 1280, unsigned int height = 720);
 
     bool isOpen() const;
-    void handleEvents();
-    void render(const World &world);
+    UiAction handleEvents(const World &world);
+    void render(const World &world, bool connectionLost);
 
 private:
-    void drawGrid(const World &world, float offsetX, float offsetY, float tile);
-    void drawResources(const World &world, float offsetX, float offsetY, float tile);
-    void drawPlayers(const World &world, float offsetX, float offsetY, float tile);
+    struct Layout {
+        float offsetX;
+        float offsetY;
+        float tile;
+    };
 
+    Layout computeLayout(const World &world) const;
+    float mapAreaWidth() const;
+    void updateMapView();
+    UiAction handleClick(const World &world, int px, int py);
+
+    void drawGrid(const World &world, const Layout &l);
+    void drawIncantations(const World &world, const Layout &l);
+    void drawResources(const World &world, const Layout &l);
+    void drawEggs(const World &world, const Layout &l);
+    void drawPlayers(const World &world, const Layout &l);
+    void drawEffects(const World &world, const Layout &l);
+    void drawSelection(const World &world, const Layout &l);
+    void drawPanel(const World &world);
+    void drawConnectionLost();
+    void drawGameOver(const World &world);
+
+    void drawText(std::string_view text, float x, float y,
+                  unsigned int size, sf::Color color);
     sf::Color teamColor(const World &world, const std::string &team) const;
 
     sf::RenderWindow _window;
+    sf::Font _font;
+    bool _fontLoaded = false;
+    sf::View _mapView;
+    float _zoom = 1.f;
+    sf::Vector2f _center;
+    int _selectedPlayer = -1;
+    int _selectedTileX = -1;
+    int _selectedTileY = -1;
 };

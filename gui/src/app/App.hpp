@@ -7,9 +7,10 @@
 
 #pragma once
 
-#include "Network.hpp"
-#include "World.hpp"
-#include "Parser.hpp"
+#include "network/Network.hpp"
+#include "world/World.hpp"
+#include "parser/Parser.hpp"
+#include "renderer/Renderer.hpp"
 
 class App {
 public:
@@ -19,9 +20,11 @@ public:
 
 private:
     void pumpNetwork();
+    void applyUiAction(const UiAction &action);
 
     Network _network;
     World _world;
     Parser _parser;
     bool _ready;
+    bool _lossReported = false;
 };
