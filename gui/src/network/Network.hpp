@@ -19,9 +19,14 @@ public:
     bool sendLine(const std::string &line);
     void poll();
     bool nextMessage(std::string &out);
+    bool isConnected() const { return _fd != -1; }
 
 private:
+    void flushSend();
+    void disconnect();
+
     int _fd;
     std::string _buffer;
+    std::string _sendBuffer;
     std::queue<std::string> _messages;
 };

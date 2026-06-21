@@ -5,8 +5,9 @@
 ** Parser.cpp
 */
 
-#include "Parser.hpp"
+#include "parser/Parser.hpp"
 
+#include <charconv>
 #include <iostream>
 
 Parser::Parser(World &world) : _world(world)
@@ -19,6 +20,26 @@ Parser::Parser(World &world) : _world(world)
     _handlers["plv"] = [this](std::istringstream &a) { handlePlayerLevel(a); };
     _handlers["pin"] = [this](std::istringstream &a) { handlePlayerInventory(a); };
     _handlers["pdi"] = [this](std::istringstream &a) { handlePlayerDeath(a); };
+    _handlers["enw"] = [this](std::istringstream &a) { handleNewEgg(a); };
+    _handlers["ebo"] = [this](std::istringstream &a) { handleEggHatch(a); };
+    _handlers["edi"] = [this](std::istringstream &a) { handleEggDeath(a); };
+    _handlers["pic"] = [this](std::istringstream &a) { handleIncantationStart(a); };
+    _handlers["pie"] = [this](std::istringstream &a) { handleIncantationEnd(a); };
+    _handlers["pbc"] = [this](std::istringstream &a) { handleBroadcast(a); };
+    _handlers["pex"] = [this](std::istringstream &a) { handleEjection(a); };
+    _handlers["pfk"] = [this](std::istringstream &a) { handleEggLaying(a); };
+    _handlers["pdr"] = [this](std::istringstream &a) { handleResourceDrop(a); };
+    _handlers["pgt"] = [this](std::istringstream &a) { handleResourceTake(a); };
+    _handlers["sgt"] = [this](std::istringstream &a) { handleTimeUnit(a); };
+    _handlers["sst"] = [this](std::istringstream &a) { handleTimeUnit(a); };
+    _handlers["seg"] = [this](std::istringstream &a) { handleGameOver(a); };
+    _handlers["smg"] = [this](std::istringstream &a) { handleServerMessage(a); };
+    _handlers["suc"] = [](std::istringstream &) {
+        std::cout << "[serveur] commande inconnue (suc)" << std::endl;
+    };
+    _handlers["sbp"] = [](std::istringstream &) {
+        std::cout << "[serveur] mauvais parametres (sbp)" << std::endl;
+    };
 }
 
 void Parser::parse(const std::string &line)
@@ -38,89 +59,20 @@ void Parser::parse(const std::string &line)
 
 int Parser::parseId(const std::string &token)
 {
-    if (!token.empty() && token[0] == '#')
-        return std::stoi(token.substr(1));
-    return std::stoi(token);
+    std::size_t offset = (!token.empty() && token[0] == '#') ? 1 : 0;
+    int value = 0;
+    const char *first = token.data() + offset;
+    const char *last = token.data() + token.size();
+    auto [ptr, ec] = std::from_chars(first, last, value);
+    if (ec != std::errc() || ptr != last)
+        return -1;
+    return value;
 }
 
-void Parser::handleMapSize(std::istringstream &args)
+std::string Parser::restOfLine(std::istringstream &args)
 {
-    int w = 0;
-    int h = 0;
-    if (args >> w >> h && w > 0 && h > 0)
-        _world.setMapSize(w, h);
-}
-
-void Parser::handleTile(std::istringstream &args)
-{
-    int x = 0;
-    int y = 0;
-    if (!(args >> x >> y))
-        return;
-    if (x < 0 || y < 0 || x >= _world.width() || y >= _world.height())
-        return;
-
-    Tile &tile = _world.tile(x, y);
-    for (int r = 0; r < RESOURCE_COUNT; ++r) {
-        int quantity = 0;
-        if (!(args >> quantity))
-            return;
-        tile.resources[r] = quantity;
-    }
-}
-
-void Parser::handleTeamName(std::istringstream &args)
-{
-    std::string name;
-    if (args >> name)
-        _world.addTeam(name);
-}
-
-void Parser::handleNewPlayer(std::istringstream &args)
-{
-    std::string idToken;
-    int x = 0, y = 0, orientation = 1, level = 1;
-    std::string team;
-    if (!(args >> idToken >> x >> y >> orientation >> level >> team))
-        return;
-    _world.addPlayer(parseId(idToken), x, y, orientation, level, team);
-}
-
-void Parser::handlePlayerPos(std::istringstream &args)
-{
-    std::string idToken;
-    int x = 0, y = 0, orientation = 1;
-    if (!(args >> idToken >> x >> y >> orientation))
-        return;
-    _world.movePlayer(parseId(idToken), x, y, orientation);
-}
-
-void Parser::handlePlayerLevel(std::istringstream &args)
-{
-    std::string idToken;
-    int level = 0;
-    if (!(args >> idToken >> level))
-        return;
-    _world.setPlayerLevel(parseId(idToken), level);
-}
-
-void Parser::handlePlayerInventory(std::istringstream &args)
-{
-    std::string idToken;
-    int x = 0, y = 0;
-    if (!(args >> idToken >> x >> y))
-        return;
-    int inventory[RESOURCE_COUNT] = {0};
-    for (int r = 0; r < RESOURCE_COUNT; ++r) {
-        if (!(args >> inventory[r]))
-            return;
-    }
-    _world.setPlayerInventory(parseId(idToken), inventory);
-}
-
-void Parser::handlePlayerDeath(std::istringstream &args)
-{
-    std::string idToken;
-    if (args >> idToken)
-        _world.removePlayer(parseId(idToken));
+    std::string rest;
+    std::getline(args, rest);
+    std::size_t start = rest.find_first_not_of(' ');
+    return start == std::string::npos ? "" : rest.substr(start);
 }

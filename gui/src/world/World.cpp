@@ -5,7 +5,7 @@
 ** World.cpp
 */
 
-#include "World.hpp"
+#include "world/World.hpp"
 
 #include <algorithm>
 
@@ -37,45 +37,7 @@ void World::addTeam(const std::string &name)
         _teams.push_back(name);
 }
 
-void World::addPlayer(int id, int x, int y, int orientation, int level, const std::string &team)
+bool World::inBounds(int x, int y) const
 {
-    Player p;
-    p.x = x;
-    p.y = y;
-    p.orientation = orientation;
-    p.level = level;
-    p.team = team;
-    _players[id] = p;
-}
-
-void World::movePlayer(int id, int x, int y, int orientation)
-{
-    auto it = _players.find(id);
-    if (it == _players.end())
-        return;
-    it->second.x = x;
-    it->second.y = y;
-    it->second.orientation = orientation;
-}
-
-void World::setPlayerLevel(int id, int level)
-{
-    auto it = _players.find(id);
-    if (it == _players.end())
-        return;
-    it->second.level = level;
-}
-
-void World::setPlayerInventory(int id, const int inventory[RESOURCE_COUNT])
-{
-    auto it = _players.find(id);
-    if (it == _players.end())
-        return;
-    for (int r = 0; r < RESOURCE_COUNT; ++r)
-        it->second.inventory[r] = inventory[r];
-}
-
-void World::removePlayer(int id)
-{
-    _players.erase(id);
+    return x >= 0 && y >= 0 && x < _width && y < _height;
 }
