@@ -24,6 +24,8 @@ class ActionState(Enum):
     COLLECT = auto()
     INCANTATE = auto()
     FORK = auto()
+    MOVE_TO_GATHER = auto()
+    WAIT_FOR_TEAM = auto()
 
 
 @dataclass

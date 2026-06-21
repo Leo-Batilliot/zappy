@@ -2,8 +2,7 @@ import sys
 from network import NetworkClient
 import pathfinding
 from strategy import Strategy
-from state import Inventory
-from state import ActionState
+from state import Inventory, ActionState, ELEVATION_REQUIREMENTS, RESOURCES
 
 class ZappyBot:
     def __init__(self, host: str, port: int, team_name: str):
@@ -100,12 +99,44 @@ class ZappyBot:
 
     def _decide_next_move(self, tiles):
         """Demande au cerveau (Strategy) et aux yeux (Pathfinding) quoi faire."""
+        # Envoyer le broadcast en attente avant toute décision de mouvement
+        msg = self.strategy.pop_broadcast()
+        if msg:
+            self._queue_command(f"Broadcast {msg}")
+
+        state = self.strategy.state
+        print(f"[STRATÉGIE] État : {state.name}, niveau : {self.strategy.level}")
+
+        if state == ActionState.INCANTATE:
+            self._trigger_incantation()
+            return
+
+        if state == ActionState.WAIT_FOR_TEAM:
+            # Leader : re-broadcaster périodiquement et vérifier la nourriture
+            self._queue_command(f"Broadcast GATHER_{self.strategy.level}")
+            self._queue_command("Inventory")
+            return
+
+        if state == ActionState.FORK:
+            print("[IA] Ponte d'un œuf pour agrandir l'équipe.")
+            self._queue_command("Fork")
+            self.strategy.state = ActionState.COLLECT
+            return
+
+        if state == ActionState.MOVE_TO_GATHER:
+            # Follower : avancer d'un pas vers la source du broadcast
+            direction = self.strategy.gather_direction
+            if direction is not None:
+                moves = pathfinding.moves_toward_broadcast(direction)
+                for move in moves:
+                    self._queue_command(move)
+            self._queue_command("Look")
+            return
+
+        # États SURVIVE et COLLECT : logique normale de collecte
         target = self.strategy.target_resource(self.inventory)
-        print(f"[STRATÉGIE] Objectif actuel : {target}")
-        
         if target:
             nearest_index = pathfinding.find_nearest(tiles, target)
-            
             if nearest_index is not None:
                 moves = pathfinding.moves_to_tile(nearest_index)
                 for move in moves:
@@ -114,6 +145,19 @@ class ZappyBot:
             else:
                 self._queue_command("Forward")
                 self._queue_command("Look")
+
+    def _trigger_incantation(self) -> None:
+        """Dépose les pierres requises sur la tuile courante puis lance l'incantation."""
+        req = ELEVATION_REQUIREMENTS.get(self.strategy.level)
+        if not req:
+            return
+        stone_names = RESOURCES[1:]
+        _, *needed = req
+        for name, count in zip(stone_names, needed):
+            for _ in range(count):
+                self._queue_command(f"Set {name}")
+        self._queue_command("Incantation")
+        self.strategy.state = ActionState.COLLECT
 
     def _handle_server_message(self, message: str) -> None:
         """
@@ -160,13 +204,13 @@ class ZappyBot:
         """Extrait la direction et le texte d'un message broadcasté."""
         content = message[8:]
         parts = content.split(",", 1)
-        
+
         if len(parts) == 2:
             try:
                 direction = int(parts[0].strip())
                 texte = parts[1].strip()
                 print(f"[RADIO] J'entends '{texte}' de la direction {direction}")
-                ####### TO DO : self.strategy.on_broadcast_received(direction, texte) ########
+                self.strategy.on_broadcast_received(direction, texte)
             except ValueError:
                 pass
 
@@ -186,14 +230,21 @@ class ZappyBot:
             self._handle_connect_nbr_response(message)
         elif command == "fork":
             self._handle_fork_response(message)
+        elif command == "set":
+            if message == "ko":
+                print("[IA] Échec Set — ressource absente, retour en collecte.")
+                self.strategy.state = ActionState.COLLECT
+                self._queue_command("Look")
+        elif command == "broadcast":
+            pass
         elif command in ["forward", "right", "left"]:
             pass
 
     def _handle_inventory_response(self, message: str) -> None:
-        """Met à jour l'état FSM et déclenche la prochaine phase d'observation."""
+        """Met à jour l'état FSM et vérifie les slots d'équipe avant d'observer."""
         self._update_inventory_from_string(message)
         self.strategy.update(self.inventory)
-        self._queue_command("Look")
+        self._queue_command("Connect_nbr")
 
     def _handle_look_response(self, message: str) -> None:
         """Transmet le champ de vision à l'algorithme de pathfinding."""
@@ -229,16 +280,20 @@ class ZappyBot:
             self._queue_command("Look")
 
     def _handle_connect_nbr_response(self, message: str) -> None:
-        """Met à jour les informations sur la capacité d'accueil de l'équipe."""
+        """Vérifie les slots disponibles, décide du Fork, puis lance le Look."""
         try:
-            self.client_num = int(message)
-            print(f"[ÉTAT] Places libres pour l'équipe : {self.client_num}")
+            slots = int(message)
+            self.client_num = slots
+            print(f"[ÉTAT] Slots libres : {slots}")
+            self.strategy.on_connect_nbr(slots, self.inventory)
         except ValueError:
             pass
+        self._queue_command("Look")
 
     def _handle_fork_response(self, message: str) -> None:
-        """Analyse le succès ou l'échec de la ponte d'un œuf."""
+        """Reprend la boucle normale après la ponte."""
         if message == "ok":
-            print("[IA] Ponte validée, nouveau slot imminent.")
+            print("[IA] Ponte validée, nouveau slot créé.")
         else:
             print("[IA] Échec de la ponte (ko).")
+        self._queue_command("Inventory")
