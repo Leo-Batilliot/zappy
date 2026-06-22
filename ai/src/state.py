@@ -28,6 +28,7 @@ class ActionState(Enum):
     WAIT_FOR_TEAM = auto()
     ARRIVED = auto()
     SPAWN_ALLY = auto()
+    WAIT_INCANTATION = auto()
 
 
 @dataclass

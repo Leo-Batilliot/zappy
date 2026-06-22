@@ -129,17 +129,8 @@ class ZappyBot:
             return
 
         if state == ActionState.MOVE_TO_GATHER:
-            # Follower : avancer d'un pas vers la source du broadcast
             direction = self.strategy.gather_direction
             if direction is not None:
-                if direction == 0:
-                    stone_names = RESOURCES[1:]
-                    for stone in stone_names:
-                        count = getattr(self.inventory, stone)
-                        for _ in range(count):
-                            self._queue_command(f"Set {stone}")
-                    self._queue_command("Inventory")
-            else:
                 moves = pathfinding.moves_toward_broadcast(direction)
                 for move in moves:
                     self._queue_command(move)
@@ -220,7 +211,12 @@ class ZappyBot:
 
     def _is_async_event(self, message: str) -> bool:
         """Détermine si le message serveur est un événement non sollicité."""
-        return message == "dead" or message.startswith("message") or message.startswith("eject:")
+        if message == "dead" or message.startswith("message") or message.startswith("eject:"):
+            return True
+        # Pour les followers : ces messages arrivent sans avoir envoyé Incantation
+        if message == "Elevation underway" or message.startswith("Current level"):
+            return "incantation" not in self.sent_commands
+        return False
 
     def _handle_async_event(self, message: str) -> None:
         """Traite les événements asynchrones (Mort, Broadcast, Éjection)."""
@@ -233,7 +229,15 @@ class ZappyBot:
             self.command_queue.clear()
             self.strategy.state = ActionState.COLLECT
             self._queue_command("Look")
-            
+
+        elif message == "Elevation underway":
+            print("[IA] [FOLLOWER] Rituel amorcé sur ma tuile, j'attends.")
+
+        elif message.startswith("Current level"):
+            print(f"[IA] [FOLLOWER] Niveau atteint : {message}")
+            self.strategy.on_level_up()
+            self._queue_command("Inventory")
+
         elif message.startswith("message"):
             self._parse_broadcast(message)
 

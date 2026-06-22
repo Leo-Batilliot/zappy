@@ -25,17 +25,18 @@ class Strategy:
     def update(self, inventory: Inventory) -> None:
         if self.spawn_cooldown > 0:
             self.spawn_cooldown -= 1
-        if inventory.food <= FOOD_CRITICAL:
+
+        frozen = (ActionState.WAIT_FOR_TEAM, ActionState.ARRIVED)
+        if inventory.food <= FOOD_CRITICAL and self.state not in frozen:
             self.state = ActionState.SURVIVE
             self.ready_count = 0
             self.allies_requested = 0
             self.gather_direction = None
             return
-        if inventory.food <= FOOD_CRITICAL and self.state not in (ActionState.WAIT_FOR_TEAM, ActionState.ARRIVED):
-            self.state = ActionState.SURVIVE
-            return
+
         if self.state == ActionState.ARRIVED:
             return
+
         if self.state == ActionState.SURVIVE and inventory.food >= FOOD_SAFE:
             self.state = ActionState.COLLECT
 
@@ -49,7 +50,11 @@ class Strategy:
 
     def on_broadcast_received(self, direction: int, text: str) -> None:
         if text == f"GATHER_{self.level}":
-            if self.state in (ActionState.COLLECT, ActionState.SURVIVE, ActionState.MOVE_TO_GATHER):
+            can_respond = {ActionState.COLLECT, ActionState.SURVIVE, ActionState.MOVE_TO_GATHER}
+            # Leader sans follower : céder si quelqu'un d'autre appelle déjà
+            if self.state == ActionState.WAIT_FOR_TEAM and self.ready_count == 0:
+                can_respond.add(ActionState.WAIT_FOR_TEAM)
+            if self.state in can_respond:
                 self.gather_direction = direction
                 if direction == 0:
                     self.state = ActionState.ARRIVED
