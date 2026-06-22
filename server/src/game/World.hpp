@@ -9,11 +9,11 @@ class World {
 public:
     World(int width, int height);
 
-    int width()  const { return _width; }
+    int width() const { return _width; }
     int height() const { return _height; }
 
-    Pos         wrap(int x, int y) const;
-    Tile&       at(int x, int y);
+    Pos wrap(int x, int y) const;
+    Tile& at(int x, int y);
     const Tile& at(int x, int y) const;
 
     Pos step(Pos pos, Orientation orient, int n = 1) const;
@@ -25,17 +25,17 @@ public:
     void placeEgg(int id, Pos pos);
     void removeEgg(int id, Pos pos);
 
-    void             initResources();
+    void initResources();
     std::vector<Pos> refill();
 
-    Pos              shortestDelta(Pos from, Pos to) const;
+    Pos shortestDelta(Pos from, Pos to) const;
     std::vector<Pos> visibleTiles(Pos pos, Orientation orient, int level) const;
 
 private:
-    int               _width;
-    int               _height;
+    int _width;
+    int _height;
     std::vector<Tile> _grid;
-    std::mt19937      _rng;
+    std::mt19937 _rng;
 
     int idx(int x, int y) const { return y * _width + x; }
     int resourceTarget(int r) const;

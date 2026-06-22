@@ -6,19 +6,20 @@
 #include "game/Types.hpp"
 
 struct AiProtocol {
-    static std::string ok()   { return "ok\n"; }
-    static std::string ko()   { return "ko\n"; }
+    static std::string ok() { return "ok\n"; }
+    static std::string ko() { return "ko\n"; }
     static std::string dead() { return "dead\n"; }
 
     static std::string look(const std::vector<std::string> &tiles)
     {
         std::string out = "[";
         for (std::size_t i = 0; i < tiles.size(); ++i) {
-            out += tiles[i];
-            if (i + 1 < tiles.size())
-                out += ", ";
+            if (i)
+                out += ",";
+            if (!tiles[i].empty())
+                out += " " + tiles[i];
         }
-        out += "]\n";
+        out += " ]\n";
         return out;
     }
 
@@ -26,13 +27,14 @@ struct AiProtocol {
     {
         std::string out = "[";
         for (int i = 0; i < RESOURCE_COUNT; ++i) {
+            if (i)
+                out += ",";
+            out += " ";
             out += resourceName(i);
             out += " ";
             out += std::to_string(p.inventory[i]);
-            if (i + 1 < RESOURCE_COUNT)
-                out += ", ";
         }
-        out += "]\n";
+        out += " ]\n";
         return out;
     }
 

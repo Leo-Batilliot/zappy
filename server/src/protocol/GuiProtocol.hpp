@@ -18,6 +18,7 @@ public:
 
     void msz(Client &gui, int w, int h);
     void bct(Client &gui, int x, int y, const Tile &t);
+    void bct(int x, int y, const Tile &t);
     void bctAll(Client &gui, const World &w);
     void tna(Client &gui, const std::string &teamName);
     void sgt(Client &gui, int freq);

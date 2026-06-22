@@ -11,10 +11,10 @@
 class Scheduler {
 public:
     uint64_t schedule(TimePoint due, std::function<void()> fn);
-    void     cancel(uint64_t id);
+    void cancel(uint64_t id);
 
     std::optional<TimePoint> nextDeadline();
-    std::optional<Event>     popReady(TimePoint now);
+    std::optional<Event> popReady(TimePoint now);
 
 private:
     void pruneTop();

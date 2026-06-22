@@ -2,21 +2,18 @@
 #include <algorithm>
 #include <stdexcept>
 
-// ─── Construction ─────────────────────────────────────────────────────────────
-
-GameState::GameState(const Config &cfg)
-    : _world(cfg.width, cfg.height)
+GameState::GameState(const Config &cfg) : _world(cfg.width, cfg.height)
 {
     _world.initResources();
 
     for (const std::string &name : cfg.teams) {
         Team t;
-        t.name      = name;
+        t.name = name;
         t.freeSlots = cfg.clients;
         _teams[name] = std::move(t);
     }
 
-    std::uniform_int_distribution<int> randX(0, cfg.width  - 1);
+    std::uniform_int_distribution<int> randX(0, cfg.width - 1);
     std::uniform_int_distribution<int> randY(0, cfg.height - 1);
     std::mt19937 rng{std::random_device{}()};
 
@@ -28,20 +25,17 @@ GameState::GameState(const Config &cfg)
     }
 }
 
-// ─── Joueurs ──────────────────────────────────────────────────────────────────
-
-int GameState::createPlayer(const std::string &teamName, int connFd,
-                             Pos pos, Orientation orient)
+int GameState::createPlayer(const std::string &teamName, int connFd, Pos pos, Orientation orient)
 {
     int id = _nextPlayerId++;
 
     Player p;
-    p.id       = id;
+    p.id = id;
     p.teamName = teamName;
-    p.connFd   = connFd;
-    p.pos      = pos;
-    p.orient   = orient;
-    p.inventory[static_cast<int>(Resource::Food)] = INITIAL_FOOD_UNITS;
+    p.connFd = connFd;
+    p.pos = pos;
+    p.orient = orient;
+    p.inventory[static_cast<int>(Resource::Food)] = INITIAL_FOOD_COUNT;
 
     _players[id] = std::move(p);
     _world.placePlayer(id, pos);
@@ -76,16 +70,14 @@ int GameState::playerIdByFd(int fd) const
     return it != _fdToPlayerId.end() ? it->second : -1;
 }
 
-// ─── Œufs ─────────────────────────────────────────────────────────────────────
-
 int GameState::createEgg(const std::string &teamName, Pos pos, int layerId)
 {
     int id = _nextEggId++;
 
     Egg e;
-    e.id      = id;
-    e.team    = teamName;
-    e.pos     = pos;
+    e.id = id;
+    e.team = teamName;
+    e.pos = pos;
     e.layerId = layerId;
 
     _eggs[id] = std::move(e);
@@ -122,8 +114,6 @@ int GameState::hatchEgg(const std::string &teamName)
 
     return t.eggIds[idx];
 }
-
-// ─── Équipes ──────────────────────────────────────────────────────────────────
 
 bool GameState::hasFreeSlot(const std::string &name) const
 {

@@ -81,9 +81,18 @@ Config Parser::parse(int argc, char **argv)
         seen.insert(arg);
     }
 
+    const std::unordered_map<std::string, std::string> descriptions = {
+        {"-p", "port number"},
+        {"-x", "world width"},
+        {"-y", "world height"},
+        {"-n", "team names"},
+        {"-c", "number of clients per team"},
+    };
+
     for (const auto &flag : {"-p", "-x", "-y", "-n", "-c"})
         if (seen.find(flag) == seen.end())
-            throw ArgError(std::string("missing required argument: ") + flag);
+            throw ArgError("missing required argument: " + std::string(flag)
+                + " (" + descriptions.at(flag) + ")");
 
     validate(cfg);
     return cfg;

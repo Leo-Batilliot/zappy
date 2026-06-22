@@ -13,7 +13,6 @@ protected:
     std::string _where;
 };
 
-
 class ArgError : public Error {
 public:
     explicit ArgError(std::string message) : Error(std::move(message), "args") {}
