@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
     }
     signal(SIGPIPE, SIG_IGN);
     try {
-        Config cfg = Parser::parse(argc, argv);
+        const Config cfg = Parser::parse(argc, argv);
         Server server(cfg);
         server.run();
     } catch (const Error &e) {

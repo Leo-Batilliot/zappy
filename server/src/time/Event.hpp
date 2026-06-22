@@ -5,7 +5,7 @@
 #include "time/Clock.hpp"
 
 struct Event {
-    uint64_t  id;
+    uint64_t id;
     TimePoint due;
     std::function<void()> run;
     bool cancelled = false;

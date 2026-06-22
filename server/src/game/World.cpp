@@ -3,17 +3,12 @@
 #include <random>
 #include <numeric>
 
-World::World(int width, int height)
-    : _width(width), _height(height), _grid(width * height),
-      _rng(std::random_device{}())
-{}
-
-// ─── Géométrie torique ────────────────────────────────────────────────────────
+World::World(int width, int height) : _width(width), _height(height), _grid(width * height), _rng(std::random_device{}()) {}
 
 Pos World::wrap(int x, int y) const
 {
     return {
-        ((x % _width)  + _width)  % _width,
+        ((x % _width) + _width) % _width,
         ((y % _height) + _height) % _height,
     };
 }
@@ -35,14 +30,12 @@ Pos World::step(Pos pos, Orientation orient, int n) const
     int dx = 0, dy = 0;
     switch (orient) {
         case Orientation::North: dy = -1; break;
-        case Orientation::East:  dx = +1; break;
+        case Orientation::East: dx = +1; break;
         case Orientation::South: dy = +1; break;
-        case Orientation::West:  dx = -1; break;
+        case Orientation::West: dx = -1; break;
     }
     return wrap(pos.x + dx * n, pos.y + dy * n);
 }
-
-// ─── Joueurs & œufs ───────────────────────────────────────────────────────────
 
 void World::placePlayer(int id, Pos pos)
 {
@@ -71,8 +64,6 @@ void World::removeEgg(int id, Pos pos)
     auto &v = at(pos.x, pos.y).eggs;
     v.erase(std::remove(v.begin(), v.end(), id), v.end());
 }
-
-// ─── Ressources ───────────────────────────────────────────────────────────────
 
 int World::resourceTarget(int r) const
 {
@@ -122,18 +113,16 @@ std::vector<Pos> World::refill()
     return changed;
 }
 
-// ─── Broadcast : vecteur torique le plus court ────────────────────────────────
-
 Pos World::shortestDelta(Pos from, Pos to) const
 {
     int dx = to.x - from.x;
     int dy = to.y - from.y;
 
-    if (dx >  _width  / 2)
+    if (dx > _width / 2)
         dx -= _width;
-    if (dx < -_width  / 2)
+    if (dx < -_width / 2)
         dx += _width;
-    if (dy >  _height / 2)
+    if (dy > _height / 2)
         dy -= _height;
     if (dy < -_height / 2)
         dy += _height;
@@ -141,16 +130,14 @@ Pos World::shortestDelta(Pos from, Pos to) const
     return {dx, dy};
 }
 
-// ─── Vision (commande Look) ───────────────────────────────────────────────────
-
 std::vector<Pos> World::visibleTiles(Pos pos, Orientation orient, int level) const
 {
     int fwdX = 0, fwdY = 0, rgtX = 0, rgtY = 0;
     switch (orient) {
-        case Orientation::North: fwdX =  0; fwdY = -1; rgtX =  1; rgtY =  0; break;
-        case Orientation::East:  fwdX =  1; fwdY =  0; rgtX =  0; rgtY =  1; break;
-        case Orientation::South: fwdX =  0; fwdY =  1; rgtX = -1; rgtY =  0; break;
-        case Orientation::West:  fwdX = -1; fwdY =  0; rgtX =  0; rgtY = -1; break;
+        case Orientation::North: fwdX = 0; fwdY = -1; rgtX = 1; rgtY = 0; break;
+        case Orientation::East: fwdX = 1; fwdY = 0; rgtX = 0; rgtY = 1; break;
+        case Orientation::South: fwdX = 0; fwdY = 1; rgtX = -1; rgtY = 0; break;
+        case Orientation::West: fwdX = -1; fwdY = 0; rgtX = 0; rgtY = -1; break;
     }
 
     std::vector<Pos> tiles;

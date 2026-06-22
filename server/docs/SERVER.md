@@ -13,6 +13,7 @@ protocole Zappy.
 - [Modèle de jeu (`src/game`)](#modèle-de-jeu-srcgame)
 - [Réseau (`src/server`)](#réseau-srcserver)
 - [Protocoles (`src/protocol`)](#protocoles-srcprotocol)
+- [Commandes IA (`src/commands`)](#commandes-ia-srccommands)
 - [Gestion des erreurs](#gestion-des-erreurs)
 
 ---
@@ -79,11 +80,14 @@ src/
 │   ├── AiProtocol.hpp  réponses au protocole IA (header only)
 │   ├── GuiProtocol.hpp interface du protocole GUI
 │   └── GuiProtocol.cpp diffusion et sérialisation GUI
-└── server/             couche réseau
-    ├── Client.hpp      état d'une connexion + buffers
-    ├── Client.cpp
-    ├── Server.hpp      boucle d'événements (poll)
-    └── Server.cpp
+├── server/             couche réseau
+│   ├── Client.hpp      état d'une connexion + buffers
+│   ├── Client.cpp
+│   ├── Server.hpp      boucle d'événements (poll)
+│   └── Server.cpp
+└── commands/           exécution des commandes IA
+    ├── CommandExecutor.hpp  table de dispatch + file par joueur
+    └── CommandExecutor.cpp  handlers des commandes
 ```
 
 Flux général :
@@ -328,6 +332,65 @@ Diffusions à tous les GUI :
 | `edi(eggId)`                            | mort d'un oeuf             |
 | `seg(teamName)`                         | fin de partie              |
 | `smg(msg)`                              | message serveur            |
+
+---
+
+## Commandes IA (`src/commands`)
+
+`CommandExecutor` exécute les commandes envoyées par les clients IA. Chaque
+commande a un **coût en unités de temps** ; le joueur passe `Busy` pendant la
+durée, puis le handler est exécuté à l'échéance via le `Scheduler`.
+
+- `dispatch(playerId, line)` : empile la commande dans la file du joueur (10 au
+  maximum ; au-delà, la commande est ignorée).
+- `pumpPlayerQueues()` : démarre la prochaine commande de chaque joueur `Idle`
+  (une seule commande à la fois par joueur).
+
+Table des commandes (durée en unités de temps) :
+
+| Commande         | Coût | Effet                                                            |
+|------------------|------|------------------------------------------------------------------|
+| `Forward`        | 7    | avance d'une case (torique) → `ppo`                              |
+| `Right` / `Left` | 7    | rotation → `ppo`                                                 |
+| `Look`           | 7    | renvoie le cône de vision formaté                               |
+| `Inventory`      | 1    | renvoie l'inventaire                                             |
+| `Connect_nbr`    | 0    | renvoie les slots libres de l'équipe                            |
+| `Take <obj>`     | 7    | ramasse une ressource → `pgt` + `bct` + `pin`                   |
+| `Set <obj>`      | 7    | dépose une ressource → `pdr` + `bct` + `pin`                    |
+| `Fork`           | 42   | `pfk` au lancement ; à l'échéance pond un oeuf → `freeSlots++`   |
+| `Incantation`    | 300  | élévation collective (table `ELEV[8]`) → `pic` / `plv` / `pie`  |
+| `Broadcast <m>`  | 7    | diffusion sonore (voir ci-dessous) → `pbc`                      |
+| `Eject`          | 7    | pousse les autres joueurs de la case (voir ci-dessous) → `pex`  |
+
+### `Broadcast <message>`
+
+Le joueur émet un son entendu par **tous les autres joueurs**. Chacun reçoit
+`message K, <texte>\n`, où `K` indique la **direction d'origine du son** relative
+à sa propre orientation :
+
+- `K = 0` : l'émetteur est sur la **même case** ;
+- `K = 1..8` : direction en **sens horaire depuis l'avant** (`1` devant, `3` à
+  droite, `5` derrière, `7` à gauche).
+
+La direction est calculée à partir du plus court vecteur torique
+(`World::shortestDelta`) projeté dans le repère avant/droite du récepteur. Les
+GUI reçoivent `pbc #id <texte>`. L'émetteur reçoit `ok`.
+
+> Le sens de numérotation de `K` (horaire vs trigonométrique) est un point de
+> calibration contre le binaire de référence (R1).
+
+### `Eject`
+
+Le joueur pousse **tous les autres joueurs présents sur sa case** d'une case dans
+la direction qu'il regarde :
+
+- chaque joueur poussé est déplacé (`World::movePlayer`), reçoit `eject: K\n` (la
+  poussée vient du sens opposé à l'avancée du ravisseur, exprimée dans le repère
+  du poussé) et déclenche un `ppo` côté GUI ;
+- les **oeufs présents sur la case** sont détruits : `removeEgg`, `freeSlots--`
+  pour leur équipe, et `edi #egg` côté GUI ;
+- si au moins un joueur a été poussé, un `pex #id` est diffusé et le ravisseur
+  reçoit `ok` ; sinon il reçoit `ko`.
 
 ---
 

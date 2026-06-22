@@ -23,6 +23,7 @@ SRC	= 	src/main.cpp			\
 		src/game/World.cpp		\
 		src/game/GameState.cpp	\
 		src/protocol/GuiProtocol.cpp	\
+		src/commands/CommandExecutor.cpp	\
 
 OBJ	= $(SRC:src/%.cpp=$(OBJDIR)/%.o)
 DEP	= $(OBJ:.o=.d)
