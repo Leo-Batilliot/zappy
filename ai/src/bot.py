@@ -76,8 +76,9 @@ class ZappyBot:
         self.command_queue.append(command)
 
     def _send_pending_commands(self):
-        """Envoie les commandes au serveur sans dépasser la limite de 10."""
-        while self.command_queue and self.pending_commands < 10:
+        """Envoie les commandes une par une (une seule en vol à la fois).
+        """
+        while self.command_queue and self.pending_commands < 1:
             cmd = self.command_queue.pop(0)
             self.network.send_line(cmd)
             self.pending_commands += 1
@@ -114,12 +115,21 @@ class ZappyBot:
             return
 
         if state == ActionState.WAIT_FOR_TEAM:
-            # Leader : re-broadcaster périodiquement et vérifier la nourriture
+            # Combien de joueur sur la tuile
+            players_here = tiles[0].count('player')
+            self.strategy.on_players_seen(players_here)
+
+            if self.strategy.state == ActionState.INCANTATE:
+                print(f"[IA] [LEADER] {players_here} joueurs présents, lancement du rituel.")
+                self._trigger_incantation()
+                return
+
+            # Pas encore assez de monde : re-broadcaster en continu.
             self._queue_command(f"Broadcast GATHER_{self.strategy.level}")
+
             if 'food' in tiles[0]:
                 self._queue_command("Take food")
-            else:
-                self._queue_command("Inventory")
+            self._queue_command("Inventory")
             return
 
         if state == ActionState.FORK:
@@ -138,10 +148,11 @@ class ZappyBot:
             return
         
         if state == ActionState.ARRIVED:
-            # Le Follower vient d'arriver sur la case. Il doit jeter toutes ses pierres.
+            self._queue_command("Broadcast READY")
+
             stone_names = RESOURCES[1:]
             dropped_something = False
-            
+
             for stone in stone_names:
                 count = getattr(self.inventory, stone)
                 for _ in range(count):
@@ -150,6 +161,8 @@ class ZappyBot:
             if dropped_something:
                 for stone in stone_names:
                     setattr(self.inventory, stone, 0)
+            if 'food' in tiles[0]:
+                self._queue_command("Take food")
             self._queue_command("Inventory")
             return
         
@@ -171,19 +184,22 @@ class ZappyBot:
             else:
                 self._queue_command("Forward")
                 self._queue_command("Look")
+        else:
+            self._queue_command("Look")
 
     def _trigger_incantation(self) -> None:
-        """Dépose les pierres requises sur la tuile courante puis lance l'incantation."""
+        """Dépose les pierres requises sur la tuile courante puis lance l'incantation.
+        """
         req = ELEVATION_REQUIREMENTS.get(self.strategy.level)
         if not req:
             return
+        self.command_queue.clear()
         stone_names = RESOURCES[1:]
         _, *needed = req
         for name, count in zip(stone_names, needed):
             for _ in range(count):
                 self._queue_command(f"Set {name}")
         self._queue_command("Incantation")
-        self.strategy.state = ActionState.COLLECT
 
     def _handle_server_message(self, message: str) -> None:
         """
@@ -285,11 +301,7 @@ class ZappyBot:
         """Met à jour l'état FSM."""
         self._update_inventory_from_string(message)
         self.strategy.update(self.inventory)
-        
-        if self.strategy.state == ActionState.WAIT_FOR_TEAM:
-            self._queue_command("Look")
-        else:
-            self._queue_command("Connect_nbr")
+        self._queue_command("Connect_nbr")
 
     def _handle_look_response(self, message: str) -> None:
         """Transmet le champ de vision à l'algorithme de pathfinding."""
