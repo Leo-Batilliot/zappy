@@ -26,6 +26,8 @@ class ActionState(Enum):
     FORK = auto()
     MOVE_TO_GATHER = auto()
     WAIT_FOR_TEAM = auto()
+    ARRIVED = auto()
+    SPAWN_ALLY = auto()
 
 
 @dataclass

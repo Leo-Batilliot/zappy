@@ -1,8 +1,10 @@
 import sys
 from network import NetworkClient
 import pathfinding
+import subprocess
 from strategy import Strategy
 from state import Inventory, ActionState, ELEVATION_REQUIREMENTS, RESOURCES
+from state import ActionState
 
 class ZappyBot:
     def __init__(self, host: str, port: int, team_name: str):
@@ -114,7 +116,10 @@ class ZappyBot:
         if state == ActionState.WAIT_FOR_TEAM:
             # Leader : re-broadcaster périodiquement et vérifier la nourriture
             self._queue_command(f"Broadcast GATHER_{self.strategy.level}")
-            self._queue_command("Inventory")
+            if 'food' in tiles[0]:
+                self._queue_command("Take food")
+            else:
+                self._queue_command("Inventory")
             return
 
         if state == ActionState.FORK:
@@ -127,12 +132,42 @@ class ZappyBot:
             # Follower : avancer d'un pas vers la source du broadcast
             direction = self.strategy.gather_direction
             if direction is not None:
+                if direction == 0:
+                    stone_names = RESOURCES[1:]
+                    for stone in stone_names:
+                        count = getattr(self.inventory, stone)
+                        for _ in range(count):
+                            self._queue_command(f"Set {stone}")
+                    self._queue_command("Inventory")
+            else:
                 moves = pathfinding.moves_toward_broadcast(direction)
                 for move in moves:
                     self._queue_command(move)
             self._queue_command("Look")
             return
-
+        
+        if state == ActionState.ARRIVED:
+            # Le Follower vient d'arriver sur la case. Il doit jeter toutes ses pierres.
+            stone_names = RESOURCES[1:]
+            dropped_something = False
+            
+            for stone in stone_names:
+                count = getattr(self.inventory, stone)
+                for _ in range(count):
+                    self._queue_command(f"Set {stone}")
+                    dropped_something = True
+            if dropped_something:
+                for stone in stone_names:
+                    setattr(self.inventory, stone, 0)
+            self._queue_command("Inventory")
+            return
+        
+        if state == ActionState.SPAWN_ALLY:
+            self._launch_clone()
+            self.strategy.state = ActionState.WAIT_FOR_TEAM
+            self._queue_command("Look")
+            return
+        
         # États SURVIVE et COLLECT : logique normale de collecte
         target = self.strategy.target_resource(self.inventory)
         if target:
@@ -195,7 +230,9 @@ class ZappyBot:
             
         elif message.startswith("eject:"):
             print("[IA] Alerte : Déplacement forcé par une éjection !")
-            ####### TO DO : réagir à l'éjection ########
+            self.command_queue.clear()
+            self.strategy.state = ActionState.COLLECT
+            self._queue_command("Look")
             
         elif message.startswith("message"):
             self._parse_broadcast(message)
@@ -241,10 +278,14 @@ class ZappyBot:
             pass
 
     def _handle_inventory_response(self, message: str) -> None:
-        """Met à jour l'état FSM et vérifie les slots d'équipe avant d'observer."""
+        """Met à jour l'état FSM."""
         self._update_inventory_from_string(message)
         self.strategy.update(self.inventory)
-        self._queue_command("Connect_nbr")
+        
+        if self.strategy.state == ActionState.WAIT_FOR_TEAM:
+            self._queue_command("Look")
+        else:
+            self._queue_command("Connect_nbr")
 
     def _handle_look_response(self, message: str) -> None:
         """Transmet le champ de vision à l'algorithme de pathfinding."""
@@ -289,11 +330,26 @@ class ZappyBot:
         except ValueError:
             pass
         self._queue_command("Look")
+    
+    def _launch_clone(self):
+        """Lance le binaire Zappy en tâche de fond."""
+        import subprocess
+        try:
+            subprocess.Popen([
+                "./zappy_ai", 
+                "-p", str(self.network.port), 
+                "-n", self.team_name, 
+                "-h", self.network.host
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("[IA] Nouveau clone lancé en arrière-plan !")
+        except Exception as e:
+            print(f"[ERREUR] Impossible de lancer le clone : {e}")
 
     def _handle_fork_response(self, message: str) -> None:
-        """Reprend la boucle normale après la ponte."""
+        """Reprend la boucle normale après la ponte et lance le processus."""
         if message == "ok":
-            print("[IA] Ponte validée, nouveau slot créé.")
+            print("[IA] Ponte validée, la place est créée ! Lancement du clone...")
+            self._launch_clone()
         else:
             print("[IA] Échec de la ponte (ko).")
         self._queue_command("Inventory")
