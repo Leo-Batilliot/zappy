@@ -353,7 +353,7 @@ class ZappyBot:
         try:
             subprocess.Popen([
                 "./zappy_ai", 
-                "-p", str(self.network.port), 
+                "-p", str(self.network.port),
                 "-n", self.team_name, 
                 "-h", self.network.host
             ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
