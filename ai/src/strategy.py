@@ -21,6 +21,7 @@ class Strategy:
         self.spawn_cooldown: int = 0
         self.allies_requested: int = 0
         self.total_spawned: int = 0
+        self.incant_cooldown: int = 0
 
     def _needed_players(self) -> int:
         req = ELEVATION_REQUIREMENTS.get(self.level)
@@ -29,6 +30,8 @@ class Strategy:
     def update(self, inventory: Inventory) -> None:
         if self.spawn_cooldown > 0:
             self.spawn_cooldown -= 1
+        if self.incant_cooldown > 0:
+            self.incant_cooldown -= 1
 
         if inventory.food <= FOOD_CRITICAL:
             self.state = ActionState.SURVIVE
@@ -57,7 +60,13 @@ class Strategy:
             if self.state == ActionState.WAIT_FOR_TEAM and direction == 0:
                 return
             can_respond = {ActionState.COLLECT, ActionState.SURVIVE, ActionState.MOVE_TO_GATHER}
-            if self.state == ActionState.WAIT_FOR_TEAM and self.players_on_tile <= 1:
+            # Élection déterministe entre deux leaders : celui qui entend l'autre
+            # dans l'hémisphère avant/droite (1,2,3,8) cède et devient follower ;
+            # l'autre l'entend dans l'hémisphère arrière/gauche (4,5,6,7) et reste
+            # leader. L'asymétrie garantit qu'un seul des deux cède.
+            if (self.state == ActionState.WAIT_FOR_TEAM
+                    and self.players_on_tile <= 1
+                    and direction in (1, 2, 3, 8)):
                 can_respond.add(ActionState.WAIT_FOR_TEAM)
             if self.state in can_respond:
                 self.gather_direction = direction
@@ -66,22 +75,25 @@ class Strategy:
                 else:
                     self.state = ActionState.MOVE_TO_GATHER
         elif text == "READY" and self.state == ActionState.WAIT_FOR_TEAM:
+            # READY compté toutes directions : les followers atterrissent souvent
+            # adjacents (pas pile sur la tuile), donc exiger direction 0 empêcherait
+            # tout comptage. players_on_tile sert de garde-fou côté on_players_seen.
             self.confirmations += 1
 
     def on_players_seen(self, players_on_tile: int) -> None:
         """Vérité terrain transmise par le Look : nombre de joueurs sur la tuile.
 
-        Le rituel n'est lancé que si DEUX conditions sont réunies :
-        - assez de corps physiquement présents sur la tuile (Look), et
-        - assez de confirmations READY (coéquipiers du bon niveau),
+        On lance dès qu'assez de corps sont physiquement présents (Look) : c'est
+        l'information fiable. Le serveur ne valide que si tous sont du bon niveau ;
+        un passant de mauvais niveau provoque un ko (rare) sans rien consommer,
+        et le leader réessaie. Le comptage READY/confirmations était trop fragile
+        (alignement de timing improbable entre READY asynchrones et Look).
         """
         self.players_on_tile = players_on_tile
         if self.state == ActionState.WAIT_FOR_TEAM:
             needed = self._needed_players()
-            if players_on_tile >= needed and self.confirmations >= needed - 1:
+            if players_on_tile >= needed and self.incant_cooldown == 0:
                 self.state = ActionState.INCANTATE
-            else:
-                self.confirmations = 0
 
     def on_connect_nbr(self, slots: int, inventory: Inventory) -> None:
         """Recrute un allié manquant, avec un plafond DUR anti-explosion."""

@@ -1,10 +1,8 @@
 import sys
 from network import NetworkClient
 import pathfinding
-import subprocess
 from strategy import Strategy
 from state import Inventory, ActionState, ELEVATION_REQUIREMENTS, RESOURCES
-from state import ActionState
 
 class ZappyBot:
     def __init__(self, host: str, port: int, team_name: str):
@@ -139,12 +137,19 @@ class ZappyBot:
             return
 
         if state == ActionState.MOVE_TO_GATHER:
+            # Manger la food de la tuile courante pour survivre au trajet.
+            if 'food' in tiles[0]:
+                self._queue_command("Take food")
             direction = self.strategy.gather_direction
             if direction is not None:
                 moves = pathfinding.moves_toward_broadcast(direction)
                 for move in moves:
                     self._queue_command(move)
-            self._queue_command("Look")
+            # Inventory (au lieu de Look seul) pour déclencher update() à chaque pas
+            # et donc la sortie d'urgence famine ; enchaîne ensuite sur
+            # Connect_nbr -> Look. Sûr désormais : le lancement du rituel dépend de
+            # players_on_tile (Look), plus du timing des READY.
+            self._queue_command("Inventory")
             return
         
         if state == ActionState.ARRIVED:
@@ -196,8 +201,12 @@ class ZappyBot:
         self.command_queue.clear()
         stone_names = RESOURCES[1:]
         _, *needed = req
+        # Ne déposer que ce qu'on a réellement en inventaire : après un ko de
+        # retry, les pierres sont déjà au sol (le serveur ne les consomme pas),
+        # l'inventaire est vide, donc on relance juste l'Incantation.
         for name, count in zip(stone_names, needed):
-            for _ in range(count):
+            have = getattr(self.inventory, name)
+            for _ in range(min(count, have)):
                 self._queue_command(f"Set {name}")
         self._queue_command("Incantation")
 
@@ -321,9 +330,13 @@ class ZappyBot:
         de la réponse initiale d'amorçage puis du résultat final asynchrone.
         """
         if message == "ko":
-            print("[IA] L'incantation a échoué aux prérequis (ko).")
-            from state import ActionState
-            self.strategy.state = ActionState.COLLECT 
+            print("[IA] L'incantation a échoué (ko) : passant de mauvais niveau ?"
+                  " On garde les pierres au sol et on réessaie.")
+            # Rester leader : les pierres restent au sol (non consommées par le ko).
+            # Un cooldown évite de spammer Incantation et laisse le temps au passant
+            # de quitter la tuile / au vrai coéquipier d'arriver.
+            self.strategy.state = ActionState.WAIT_FOR_TEAM
+            self.strategy.incant_cooldown = 4
             self._queue_command("Look")
             
         elif message == "Elevation underway":
@@ -348,18 +361,13 @@ class ZappyBot:
         self._queue_command("Look")
     
     def _launch_clone(self):
-        """Lance le binaire Zappy en tâche de fond."""
-        import subprocess
-        try:
-            subprocess.Popen([
-                "./zappy_ai", 
-                "-p", str(self.network.port),
-                "-n", self.team_name, 
-                "-h", self.network.host
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print("[IA] Nouveau clone lancé en arrière-plan !")
-        except Exception as e:
-            print(f"[ERREUR] Impossible de lancer le clone : {e}")
+        """Signale au launcher qu'un nouvel emplacement (œuf/slot) est disponible.
+
+        En lancement automatique, le script launcher.py détecte ce signal sur
+        stdout et spawn un nouveau bot. En lancement manuel (./zappy_ai seul),
+        rien ne se passe : c'est à l'utilisateur d'ajouter les bots à la main.
+        """
+        print("##FORK##", flush=True)
 
     def _handle_fork_response(self, message: str) -> None:
         """Reprend la boucle normale après la ponte et lance le processus."""

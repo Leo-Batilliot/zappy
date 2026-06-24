@@ -68,16 +68,21 @@ def find_nearest(tiles: list[list[str]], resource: str) -> Optional[int]:
     return None
 
 
+# Convention serveur (soundDirection) : direction du son par rapport à l'avant
+# du récepteur, sens horaire. 1=devant, 2=avant-droite, 3=droite,
+# 4=arrière-droite, 5=derrière, 6=arrière-gauche, 7=gauche, 8=avant-gauche.
+# Right = rotation horaire (vers la droite), Left = anti-horaire (vers la gauche).
+# Un seul Forward par appel pour converger pile sur la tuile sans la survoler.
 _BROADCAST_MOVES: dict[int, list[str]] = {
     0: [],
     1: ['Forward'],
-    2: ['Left', 'Forward'],
-    3: ['Left', 'Forward'],
-    4: ['Left', 'Left', 'Forward'],
+    2: ['Forward'],
+    3: ['Right', 'Forward'],
+    4: ['Right', 'Forward'],
     5: ['Right', 'Right', 'Forward'],
-    6: ['Right', 'Right', 'Forward'],
-    7: ['Right', 'Forward'],
-    8: ['Right', 'Forward'],
+    6: ['Left', 'Forward'],
+    7: ['Left', 'Forward'],
+    8: ['Forward'],
 }
 
 
