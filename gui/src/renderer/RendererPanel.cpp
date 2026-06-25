@@ -9,6 +9,7 @@
 #include "renderer/RendererPrivate.hpp"
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 void Renderer::drawPanel(const World &world)
@@ -58,6 +59,12 @@ void Renderer::drawPanel(const World &world)
     }
     y += 10.f;
 
+    std::array<int, RESOURCE_COUNT> totals{};
+    for (int ty = 0; ty < world.height(); ++ty)
+        for (int tx = 0; tx < world.width(); ++tx)
+            for (int r = 0; r < RESOURCE_COUNT; ++r)
+                totals[r] += world.tile(tx, ty).resources[r];
+
     drawText("Ressources", x, y, 16, sf::Color::White);
     y += 24.f;
     sf::CircleShape dot(6.f);
@@ -65,7 +72,8 @@ void Renderer::drawPanel(const World &world)
         dot.setPosition(x, y + 3.f);
         dot.setFillColor(resourceColor(static_cast<Resource>(r)));
         _window.draw(dot);
-        drawText(RESOURCE_NAMES[r], x + 20.f, y, 14, sf::Color(200, 200, 210));
+        drawText(std::string(RESOURCE_NAMES[r]) + " : " + std::to_string(totals[r]),
+            x + 20.f, y, 14, sf::Color(200, 200, 210));
         y += 20.f;
     }
     y += 10.f;
