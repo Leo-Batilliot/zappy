@@ -92,4 +92,10 @@ private:
     struct BtnBox { float x0 = 0.f, y0 = 0.f, x1 = 0.f, y1 = 0.f; };
     BtnBox _btnRankFDec, _btnRankFInc;
     BtnBox _btnRankUp, _btnRankDown;
+    static constexpr int RANK_DISPLAY_MAX = 10;
+    std::array<BtnBox, RANK_DISPLAY_MAX> _btnRankEntry{};
+    std::array<int, RANK_DISPLAY_MAX> _rankEntryId{};
+    std::array<int, RANK_DISPLAY_MAX> _rankEntryX{};
+    std::array<int, RANK_DISPLAY_MAX> _rankEntryY{};
+    int _rankEntryCount = 0;
 };

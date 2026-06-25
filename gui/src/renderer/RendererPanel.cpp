@@ -67,6 +67,16 @@ void Renderer::handlePanelClick(int px, int py)
         _rankOffset = std::max(0, _rankOffset - 1);
     } else if (hit(_btnRankDown)) {
         _rankOffset++;
+    } else {
+        for (int i = 0; i < _rankEntryCount; ++i) {
+            if (hit(_btnRankEntry[i])) {
+                _selectedPlayer = _rankEntryId[i];
+                _selectedTileX  = _rankEntryX[i];
+                _selectedTileY  = _rankEntryY[i];
+                _secExpanded[3] = true;
+                return;
+            }
+        }
     }
 }
 
@@ -94,13 +104,13 @@ void Renderer::drawPanel(const World &world)
     auto drawTri = [&](float tx, float ty, bool expanded) {
         sf::ConvexShape tri(3);
         if (expanded) {
-            tri.setPoint(0, {tx,        ty + 2.f});
+            tri.setPoint(0, {tx, ty + 2.f});
             tri.setPoint(1, {tx + 10.f, ty + 2.f});
-            tri.setPoint(2, {tx + 5.f,  ty + 10.f});
+            tri.setPoint(2, {tx + 5.f, ty + 10.f});
         } else {
-            tri.setPoint(0, {tx,       ty});
+            tri.setPoint(0, {tx, ty});
             tri.setPoint(1, {tx + 8.f, ty + 5.f});
-            tri.setPoint(2, {tx,       ty + 10.f});
+            tri.setPoint(2, {tx, ty + 10.f});
         }
         tri.setFillColor(sf::Color(160, 160, 190));
         _window.draw(tri);
@@ -131,13 +141,13 @@ void Renderer::drawPanel(const World &world)
         out = {acx - AW * 0.5f, ay, acx + AW * 0.5f, ay + AH};
         sf::ConvexShape tri(3);
         if (upward) {
-            tri.setPoint(0, {acx,              ay});
-            tri.setPoint(1, {acx - AW * 0.5f,  ay + AH});
-            tri.setPoint(2, {acx + AW * 0.5f,  ay + AH});
+            tri.setPoint(0, {acx, ay});
+            tri.setPoint(1, {acx - AW * 0.5f, ay + AH});
+            tri.setPoint(2, {acx + AW * 0.5f, ay + AH});
         } else {
-            tri.setPoint(0, {acx,              ay + AH});
-            tri.setPoint(1, {acx - AW * 0.5f,  ay});
-            tri.setPoint(2, {acx + AW * 0.5f,  ay});
+            tri.setPoint(0, {acx, ay + AH});
+            tri.setPoint(1, {acx - AW * 0.5f, ay});
+            tri.setPoint(2, {acx + AW * 0.5f, ay});
         }
         tri.setFillColor(col);
         _window.draw(tri);
@@ -208,12 +218,25 @@ void Renderer::drawPanel(const World &world)
         y += 16.f;
 
         sf::RectangleShape swatch(sf::Vector2f(10.f, 10.f));
+        sf::RectangleShape rowHL(sf::Vector2f(PANEL_WIDTH - 28.f, 15.f));
+        rowHL.setFillColor(sf::Color(70, 70, 110, 140));
+        _rankEntryCount = 0;
         if (total == 0) {
             drawText("Aucun joueur", x, y, 12, sf::Color(120, 120, 140));
             y += 15.f;
         } else {
             for (int i = _rankOffset; i < std::min(_rankOffset + 10, total); ++i) {
                 auto [id, pptr] = ranked[static_cast<std::size_t>(i)];
+                int entryIdx = i - _rankOffset;
+                _btnRankEntry[entryIdx] = {x, y, x + PANEL_WIDTH - 28.f, y + 15.f};
+                _rankEntryId[entryIdx] = id;
+                _rankEntryX[entryIdx] = pptr->x;
+                _rankEntryY[entryIdx] = pptr->y;
+                _rankEntryCount++;
+                if (id == _selectedPlayer) {
+                    rowHL.setPosition(x, y);
+                    _window.draw(rowHL);
+                }
                 sf::Color tc = teamColor(world, pptr->team);
                 swatch.setPosition(x, y + 3.f);
                 swatch.setFillColor(tc);
@@ -324,14 +347,14 @@ void Renderer::drawPanel(const World &world)
         sf::Color kOff(200, 90, 90);
 
         auto drawBind = [&](const std::string &key, const std::string &desc, sf::Color dc) {
-            drawText(key,  x,        y, 12, kKey);
+            drawText(key, x, y, 12, kKey);
             drawText(desc, x + 56.f, y, 12, dc);
             y += 15.f;
         };
 
-        drawBind("Espace",  "Recentrer",         kDesc);
-        drawBind("Fleches", "Deplacer",           kDesc);
-        drawBind("Scroll",  "Zoom",               kDesc);
+        drawBind("Espace", "Recentrer", kDesc);
+        drawBind("Fleches", "Deplacer", kDesc);
+        drawBind("Scroll", "Zoom", kDesc);
         drawBind("+  /  -", "Vitesse  ["
             + std::to_string(world.frequency()) + "]", kDesc);
         drawBind("R", std::string("Ressources [")
@@ -340,7 +363,7 @@ void Renderer::drawPanel(const World &world)
         drawBind("T", std::string("Arbres [")
             + (_showTrees ? "ON" : "OFF") + "]",
             _showTrees ? kOn : kOff);
-        drawBind("Echap",   "Quitter",            kDesc);
+        drawBind("Echap", "Quitter", kDesc);
         y += 4.f;
     }
 
