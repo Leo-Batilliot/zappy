@@ -43,7 +43,6 @@ static sf::ConvexShape makeTriangle(float cx, float cy, float s, int orientation
     return tri;
 }
 
-// Deterministic per-tile RNG: stable across frames, pans, and zooms.
 static unsigned tileRng(int x, int y)
 {
     unsigned h = static_cast<unsigned>(x) * 2246822519u
@@ -56,7 +55,6 @@ static unsigned tileRng(int x, int y)
 
 void Renderer::drawForest(const World &world, const Layout &l)
 {
-    // Compute visible tile range from the current map view.
     sf::Vector2f vc = _mapView.getCenter();
     sf::Vector2f vs = _mapView.getSize();
     int x0 = static_cast<int>(std::floor((vc.x - vs.x * 0.5f - l.offsetX) / l.tile)) - 1;
@@ -64,7 +62,6 @@ void Renderer::drawForest(const World &world, const Layout &l)
     int y0 = static_cast<int>(std::floor((vc.y - vs.y * 0.5f - l.offsetY) / l.tile)) - 1;
     int y1 = static_cast<int>(std::ceil( (vc.y + vs.y * 0.5f - l.offsetY) / l.tile)) + 1;
 
-    // 1. Draw the continuous checker-board floor outside the game board.
     sf::RectangleShape cell(sf::Vector2f(l.tile - 1.f, l.tile - 1.f));
     cell.setOutlineThickness(1.f);
     cell.setOutlineColor(sf::Color(60, 70, 60));
@@ -79,7 +76,6 @@ void Renderer::drawForest(const World &world, const Layout &l)
         }
     }
 
-    // 2. Collect out-of-board tiles that contain a tree (~90% density).
     if (!_showTrees)
         return;
 
@@ -101,7 +97,7 @@ void Renderer::drawForest(const World &world, const Layout &l)
             if (x >= 0 && x < world.width() && y >= 0 && y < world.height())
                 continue;
             unsigned rng = tileRng(x, y);
-            if ((rng & 0xFF) < 26) // ~90 % have a tree
+            if ((rng & 0xFF) < 26)
                 continue;
             float dx = (x + 0.5f) - bcx;
             float dy = (y + 0.5f) - bcy;
@@ -109,14 +105,11 @@ void Renderer::drawForest(const World &world, const Layout &l)
         }
     }
 
-    // 3. Sort farthest-from-center first so near trees overdraw far ones.
     std::sort(trees.begin(), trees.end(), [](const TreeEntry &a, const TreeEntry &b) {
         return a.distSq > b.distSq;
     });
 
-    // 4. Draw trees.
     for (const auto &e : trees) {
-        // Pick a loaded texture deterministically.
         int idx = static_cast<int>((e.rng >> 8) % TREE_TEX_COUNT);
         for (int k = 0; k < TREE_TEX_COUNT; ++k) {
             if (_treeTexturesLoaded[(idx + k) % TREE_TEX_COUNT]) {
@@ -127,24 +120,17 @@ void Renderer::drawForest(const World &world, const Layout &l)
         if (!_treeTexturesLoaded[idx])
             continue;
 
-        // Progressive rotation: angle from board center so diagonal tiles get
-        // intermediate angles. atan2(dy,dx)+90° maps "above board" → 0° (upright).
         float dx = (e.x + 0.5f) - bcx;
         float dy = (e.y + 0.5f) - bcy;
         static constexpr float RAD2DEG = 57.29577951f;
         float rotation = std::atan2(dy, dx) * RAD2DEG + 90.f;
-        // Small per-tile jitter so the grid doesn't feel perfectly mechanical.
         rotation += static_cast<float>((e.rng >> 24) % 21) - 10.f;
 
-        // Uniform scale: width fits exactly in one tile; height overflows naturally.
-        // Small variation (0.85–1.0×) for a natural look.
         float scaleVar = 0.85f + static_cast<float>((e.rng >> 16) % 16) * 0.01f;
         sf::Vector2u ts = _treeTextures[idx].getSize();
         float uniformScale = (l.tile * scaleVar) / static_cast<float>(ts.x);
 
         sf::Sprite spr(_treeTextures[idx]);
-        // Origin at trunk base: horizontally centered, 1/5 from top.
-        // Origin at bottom-center: sprite grows upward/outward from the tile anchor.
         spr.setOrigin(ts.x * 0.5f, static_cast<float>(ts.y));
         spr.setScale(uniformScale, uniformScale);
         spr.setPosition(l.offsetX + (e.x + 0.5f) * l.tile,
@@ -341,14 +327,13 @@ void Renderer::drawPlayers(const World &world, const Layout &l)
             s = l.tile * 0.22f;
         }
 
-        // Select ghost texture: 0=basic(N/S), 1=right(E/W), 2=special(incantation)
         int texIdx = 0;
         bool mirrorX = false;
         if (p.inIncantation && _ghostTexturesLoaded[2]) {
             texIdx = 2;
         } else if ((p.orientation == 2 || p.orientation == 4) && _ghostTexturesLoaded[1]) {
             texIdx = 1;
-            mirrorX = (p.orientation == 4); // West = horizontal mirror
+            mirrorX = (p.orientation == 4);
         }
 
         if (_ghostTexturesLoaded[texIdx]) {

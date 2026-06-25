@@ -54,8 +54,6 @@ void Renderer::drawPanel(const World &world)
     background.setFillColor(sf::Color(24, 24, 34));
     _window.draw(background);
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
-
     auto drawSep = [&]() {
         sf::RectangleShape sep(sf::Vector2f(PANEL_WIDTH - 28.f, 1.f));
         sep.setFillColor(sf::Color(60, 60, 80));
@@ -87,8 +85,6 @@ void Renderer::drawPanel(const World &world)
         y += 22.f;
     };
 
-    // ── Fixed top info ───────────────────────────────────────────────────────
-
     drawText("ZAPPY", x, y, 20, sf::Color::White);
     y += 30.f;
     drawText("Carte : " + std::to_string(world.width()) + " x "
@@ -97,8 +93,6 @@ void Renderer::drawPanel(const World &world)
     drawText("Joueurs : " + std::to_string(world.players().size()),
         x, y, 13, sf::Color(200, 200, 210));
     y += 22.f;
-
-    // ── Section 0 : Equipes ──────────────────────────────────────────────────
 
     drawHeader("Equipes", 0);
     if (_secExpanded[0]) {
@@ -121,8 +115,6 @@ void Renderer::drawPanel(const World &world)
         y += 6.f;
     }
 
-    // ── Section 1 : Ressources ───────────────────────────────────────────────
-
     std::array<int, RESOURCE_COUNT> totals{};
     for (int ty2 = 0; ty2 < world.height(); ++ty2)
         for (int tx2 = 0; tx2 < world.width(); ++tx2)
@@ -139,8 +131,6 @@ void Renderer::drawPanel(const World &world)
         }
         y += 6.f;
     }
-
-    // ── Section 2 : Controles ────────────────────────────────────────────────
 
     drawHeader("Controles", 2);
     if (_secExpanded[2]) {
@@ -169,8 +159,6 @@ void Renderer::drawPanel(const World &world)
         drawBind("Echap",   "Quitter",            kDesc);
         y += 4.f;
     }
-
-    // ── Section 3 : Sélection ────────────────────────────────────────────────
 
     auto optSelected = world.findPlayer(_selectedPlayer);
     bool hasSelection = optSelected.has_value() ||
@@ -233,8 +221,6 @@ void Renderer::drawPanel(const World &world)
             drawText("Aucune selection", x, y, 12, sf::Color(120, 120, 140));
         }
     }
-
-    // ── Journal (always at bottom) ───────────────────────────────────────────
 
     const auto &logs = world.logs();
     if (!logs.empty()) {

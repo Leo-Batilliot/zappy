@@ -46,7 +46,7 @@ private:
     UiAction handleClick(const World &world, int px, int py);
 
     static constexpr int TREE_TEX_COUNT  = 4;
-    static constexpr int GHOST_TEX_COUNT = 3; // 0=basic 1=right 2=special
+    static constexpr int GHOST_TEX_COUNT = 3;
 
     void drawForest(const World &world, const Layout &l);
     void drawGrid(const World &world, const Layout &l);
@@ -85,7 +85,6 @@ private:
     int _selectedTileY = -1;
     bool _showResources = true;
     bool _showTrees = true;
-    // Section indices: 0=Equipes 1=Ressources 2=Controles 3=Selection
     std::array<bool, 4>  _secExpanded{true, true, true, true};
     std::array<float, 4> _secHeaderY{};
 };
