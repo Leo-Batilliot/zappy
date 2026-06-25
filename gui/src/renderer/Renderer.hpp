@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <array>
 #include <string>
 #include <string_view>
 #include <SFML/Graphics.hpp>
@@ -62,6 +63,8 @@ private:
     sf::RenderWindow _window;
     sf::Font _font;
     bool _fontLoaded = false;
+    std::array<sf::Texture, RESOURCE_COUNT> _resTextures;
+    std::array<bool, RESOURCE_COUNT> _resTexturesLoaded{};
     sf::View _mapView;
     float _zoom = 1.f;
     sf::Vector2f _center;

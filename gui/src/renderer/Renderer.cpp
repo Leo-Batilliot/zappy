@@ -7,6 +7,10 @@
 #include <iostream>
 #include <string_view>
 
+static constexpr std::array<std::string_view, RESOURCE_COUNT> ASSET_NAMES = {
+    "apple", "ore1", "ore2", "ore3", "ore4", "ore5", "ore6",
+};
+
 static constexpr std::size_t PALETTE_SIZE = 8;
 static const std::array<sf::Color, PALETTE_SIZE> TEAM_PALETTE = {
     sf::Color(220, 80, 80),
@@ -33,6 +37,17 @@ Renderer::Renderer(unsigned int width, unsigned int height)
     if (!_fontLoaded)
         std::cerr << "Police introuvable (gui/assets/DejaVuSans.ttf) : "
                   << "le GUI fonctionnera sans texte." << std::endl;
+
+    for (int r = 0; r < RESOURCE_COUNT; ++r) {
+        for (std::string_view base : std::array<std::string_view, 2>{"gui/assets/", "assets/"}) {
+            std::string path = std::string(base) + std::string(ASSET_NAMES[r]) + ".png";
+            if (std::filesystem::exists(path) && _resTextures[r].loadFromFile(path)) {
+                _resTextures[r].setSmooth(true);
+                _resTexturesLoaded[r] = true;
+                break;
+            }
+        }
+    }
 
     _windowSize = {width, height};
     _center = {mapAreaWidth() / 2.f, static_cast<float>(height) / 2.f};

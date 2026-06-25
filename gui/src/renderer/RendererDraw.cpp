@@ -92,7 +92,14 @@ void Renderer::drawResources(const World &world, const Layout &l)
     if (radius < 1.5f)
         return;
 
+    static const std::array<sf::Vector2f, RESOURCE_COUNT> RES_POS = {{
+        {0.15f, 0.15f}, {0.50f, 0.15f}, {0.85f, 0.15f},
+        {0.15f, 0.50f}, {0.85f, 0.50f},
+        {0.15f, 0.85f}, {0.50f, 0.85f},
+    }};
+
     bool showCounts = _fontLoaded && (l.tile / _zoom) >= 48.f;
+    float spriteHalf = l.tile * 0.12f;
     sf::CircleShape dot(radius);
     dot.setOutlineThickness(0.f);
 
@@ -104,18 +111,31 @@ void Renderer::drawResources(const World &world, const Layout &l)
             for (int r = 0; r < RESOURCE_COUNT; ++r) {
                 if (t.resources[r] <= 0)
                     continue;
-                int col = r % 4;
-                int row = r / 4;
-                float cx = cellX + l.tile * 0.2f + col * l.tile * 0.2f;
-                float cy = cellY + l.tile * 0.3f + row * l.tile * 0.3f;
-                dot.setPosition(cx - radius, cy - radius);
-                dot.setFillColor(resourceColor(static_cast<Resource>(r)));
-                _window.draw(dot);
-                if (showCounts)
-                    drawText(std::to_string(t.resources[r]),
-                        cx + radius, cy - l.tile * 0.09f,
-                        static_cast<unsigned int>(l.tile * 0.13f),
-                        sf::Color::White);
+                float cx = cellX + RES_POS[r].x * l.tile;
+                float cy = cellY + RES_POS[r].y * l.tile;
+
+                if (_resTexturesLoaded[r]) {
+                    sf::Vector2u ts = _resTextures[r].getSize();
+                    sf::Sprite spr(_resTextures[r]);
+                    spr.setOrigin(ts.x * 0.5f, ts.y * 0.5f);
+                    spr.setScale(spriteHalf * 2.f / ts.x, spriteHalf * 2.f / ts.y);
+                    spr.setPosition(cx, cy);
+                    _window.draw(spr);
+                    if (showCounts)
+                        drawText(std::to_string(t.resources[r]),
+                            cx + spriteHalf, cy - l.tile * 0.09f,
+                            static_cast<unsigned int>(l.tile * 0.13f),
+                            sf::Color::White);
+                } else {
+                    dot.setPosition(cx - radius, cy - radius);
+                    dot.setFillColor(resourceColor(static_cast<Resource>(r)));
+                    _window.draw(dot);
+                    if (showCounts)
+                        drawText(std::to_string(t.resources[r]),
+                            cx + radius, cy - l.tile * 0.09f,
+                            static_cast<unsigned int>(l.tile * 0.13f),
+                            sf::Color::White);
+                }
             }
         }
     }
