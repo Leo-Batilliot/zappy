@@ -102,9 +102,6 @@ Pos forwardDelta(Orientation o)
     return {0, 0};
 }
 
-// Direction d'un son/poussée venant du vecteur monde (dx, dy) exprimée dans le
-// repère du récepteur : 0 = même case, puis 1..8 en sens horaire depuis l'avant
-// (1 devant, 3 à droite, 5 derrière, 7 à gauche). Cf. calibration R1.
 int soundDirection(Orientation recv, int dx, int dy)
 {
     if (dx == 0 && dy == 0)
@@ -119,7 +116,7 @@ int soundDirection(Orientation recv, int dx, int dy)
     }
 
     int f = sign(dx * fwdX + dy * fwdY);
-    int r = sign(dx * rgtX + dy * rgtY);
+    int r = -sign(dx * rgtX + dy * rgtY);
 
     if (f > 0 && r == 0) return 1;
     if (f > 0 && r > 0)  return 2;
@@ -128,7 +125,7 @@ int soundDirection(Orientation recv, int dx, int dy)
     if (f < 0 && r == 0) return 5;
     if (f < 0 && r < 0)  return 6;
     if (f == 0 && r < 0) return 7;
-    return 8; // f > 0 && r < 0
+    return 8;
 }
 
 }
@@ -274,7 +271,6 @@ void CommandExecutor::registerCommands()
         Pos to = st.world().step(from, ejector.orient, 1);
         Pos fwd = forwardDelta(ejector.orient);
 
-        // Copie : déplacer les joueurs et retirer les œufs mute le vecteur de la case.
         Tile &tile = st.world().at(from.x, from.y);
         std::vector<int> others;
         for (int pid : tile.players)
@@ -286,7 +282,6 @@ void CommandExecutor::registerCommands()
             Player &victim = st.player(pid);
             st.world().movePlayer(pid, from, to);
             victim.pos = to;
-            // La poussée vient de la case du ravisseur, soit le sens opposé à son avancée.
             int k = soundDirection(victim.orient, -fwd.x, -fwd.y);
             _server.sendToPlayer(pid, AiProtocol::eject(k));
             _server.gui().ppo(victim);
@@ -348,7 +343,9 @@ void CommandExecutor::dispatch(int playerId, const std::string &line)
         return;
 
     Player &p = _server.state().player(playerId);
-    if (p.cmdQueue.size() >= MAX_QUEUE)
+    std::size_t inFlight = (p.state == Player::State::Busy ||
+                            p.state == Player::State::Incanting) ? 1 : 0;
+    if (p.cmdQueue.size() + inFlight >= MAX_QUEUE)
         return;
     p.cmdQueue.push_back(line);
 }

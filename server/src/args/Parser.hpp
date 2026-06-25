@@ -2,9 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <stdexcept>
-#include <string>
-#include <vector>
 #include "Error.hpp"
 
 struct Config {

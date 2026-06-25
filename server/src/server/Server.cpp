@@ -147,7 +147,6 @@ void Server::acceptClient()
     Client &client = _clients.try_emplace(clientFd, clientFd).first->second;
     client.queueWrite("WELCOME\n");
     syncPollOut(client);
-    // OPT
     std::cout << "new client: fd " << clientFd << std::endl;
 }
 
@@ -246,7 +245,6 @@ void Server::doHandshake(Client &client, const std::string &teamName)
     if (teamName == "GRAPHIC") {
         client.setState(Client::State::Gui);
         _gui.sendInitialState(client, _state, _config.freq);
-        // OPT (Debug)
         std::cout << "fd " << client.fd() << ": GUI connected" << std::endl;
         return;
     }
