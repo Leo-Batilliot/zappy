@@ -93,8 +93,8 @@ void Renderer::drawResources(const World &world, const Layout &l)
         return;
 
     static const std::array<sf::Vector2f, RESOURCE_COUNT> RES_POS = {{
-        {0.15f, 0.15f}, {0.50f, 0.15f}, {0.85f, 0.15f},
-        {0.15f, 0.50f}, {0.85f, 0.50f},
+        {0.15f, 0.15f}, {0.50f, 0.15f}, {0.78f, 0.15f},
+        {0.15f, 0.50f}, {0.78f, 0.50f},
         {0.15f, 0.85f}, {0.50f, 0.85f},
     }};
 
@@ -123,7 +123,7 @@ void Renderer::drawResources(const World &world, const Layout &l)
                     _window.draw(spr);
                     if (showCounts)
                         drawText(std::to_string(t.resources[r]),
-                            cx + spriteHalf, cy - l.tile * 0.09f,
+                            cx + spriteHalf, cy + l.tile * 0.02f,
                             static_cast<unsigned int>(l.tile * 0.13f),
                             sf::Color::White);
                 } else {
@@ -132,7 +132,7 @@ void Renderer::drawResources(const World &world, const Layout &l)
                     _window.draw(dot);
                     if (showCounts)
                         drawText(std::to_string(t.resources[r]),
-                            cx + radius, cy - l.tile * 0.09f,
+                            cx + radius, cy + l.tile * 0.02f,
                             static_cast<unsigned int>(l.tile * 0.13f),
                             sf::Color::White);
                 }

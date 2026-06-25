@@ -56,6 +56,7 @@ private:
     void drawConnectionLost();
     void drawGameOver(const World &world);
 
+    void drawResourceIcon(int r, float cx, float cy, float size);
     void drawText(std::string_view text, float x, float y,
                   unsigned int size, sf::Color color);
     sf::Color teamColor(const World &world, const std::string &team) const;

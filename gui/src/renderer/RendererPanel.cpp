@@ -12,6 +12,24 @@
 #include <array>
 #include <string>
 
+void Renderer::drawResourceIcon(int r, float cx, float cy, float size)
+{
+    if (_resTexturesLoaded[r]) {
+        sf::Vector2u ts = _resTextures[r].getSize();
+        sf::Sprite spr(_resTextures[r]);
+        spr.setOrigin(ts.x * 0.5f, ts.y * 0.5f);
+        spr.setScale(size / ts.x, size / ts.y);
+        spr.setPosition(cx, cy);
+        _window.draw(spr);
+    } else {
+        sf::CircleShape dot(size * 0.5f);
+        dot.setOrigin(size * 0.5f, size * 0.5f);
+        dot.setPosition(cx, cy);
+        dot.setFillColor(resourceColor(static_cast<Resource>(r)));
+        _window.draw(dot);
+    }
+}
+
 void Renderer::drawPanel(const World &world)
 {
     sf::Vector2u ws = _window.getSize();
@@ -67,13 +85,10 @@ void Renderer::drawPanel(const World &world)
 
     drawText("Ressources", x, y, 16, sf::Color::White);
     y += 24.f;
-    sf::CircleShape dot(6.f);
     for (int r = 0; r < RESOURCE_COUNT; ++r) {
-        dot.setPosition(x, y + 3.f);
-        dot.setFillColor(resourceColor(static_cast<Resource>(r)));
-        _window.draw(dot);
+        drawResourceIcon(r, x + 8.f, y + 8.f, 14.f);
         drawText(std::string(RESOURCE_NAMES[r]) + " : " + std::to_string(totals[r]),
-            x + 20.f, y, 14, sf::Color(200, 200, 210));
+            x + 22.f, y, 14, sf::Color(200, 200, 210));
         y += 20.f;
     }
     y += 10.f;
@@ -99,9 +114,10 @@ void Renderer::drawPanel(const World &world)
         drawText("Inventaire :", x, y, 14, sf::Color::White);
         y += 20.f;
         for (int r = 0; r < RESOURCE_COUNT; ++r) {
+            drawResourceIcon(r, x + 7.f, y + 7.f, 13.f);
             drawText(std::string(RESOURCE_NAMES[r]) + " : "
                 + std::to_string(selected.inventory[r]),
-                x + 16.f, y, 13, sf::Color(190, 190, 200));
+                x + 20.f, y, 13, sf::Color(190, 190, 200));
             y += 18.f;
         }
     } else if (_selectedTileX >= 0 && _selectedTileX < world.width() &&
@@ -113,9 +129,10 @@ void Renderer::drawPanel(const World &world)
         for (int r = 0; r < RESOURCE_COUNT; ++r) {
             if (tile.resources[r] <= 0)
                 continue;
+            drawResourceIcon(r, x + 7.f, y + 7.f, 13.f);
             drawText(std::string(RESOURCE_NAMES[r]) + " : "
                 + std::to_string(tile.resources[r]),
-                x + 16.f, y, 13, sf::Color(190, 190, 200));
+                x + 20.f, y, 13, sf::Color(190, 190, 200));
             y += 18.f;
         }
         int playersHere = 0;
