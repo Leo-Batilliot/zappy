@@ -64,7 +64,7 @@ private:
     void drawText(std::string_view text, float x, float y,
                   unsigned int size, sf::Color color);
     void drawResourceCounts(const World &world, const Layout &l);
-    void handlePanelClick(int py);
+    void handlePanelClick(int px, int py);
     sf::Color teamColor(const World &world, const std::string &team) const;
 
     sf::RenderWindow _window;
@@ -85,6 +85,11 @@ private:
     int _selectedTileY = -1;
     bool _showResources = true;
     bool _showTrees = true;
-    std::array<bool, 4>  _secExpanded{true, true, true, true};
-    std::array<float, 4> _secHeaderY{};
+    std::array<bool, 6>  _secExpanded{true, true, true, false, false, false};
+    std::array<float, 6> _secHeaderY{};
+    int _rankOffset = 0;
+    int _rankLevelFilter = -1;
+    struct BtnBox { float x0 = 0.f, y0 = 0.f, x1 = 0.f, y1 = 0.f; };
+    BtnBox _btnRankFDec, _btnRankFInc;
+    BtnBox _btnRankUp, _btnRankDown;
 };

@@ -55,7 +55,7 @@ UiAction Renderer::handleEvents(const World &world)
                         action = handleClick(world, event.mouseButton.x,
                             event.mouseButton.y);
                     else
-                        handlePanelClick(event.mouseButton.y);
+                        handlePanelClick(event.mouseButton.x, event.mouseButton.y);
                 }
                 break;
             case sf::Event::KeyPressed:
