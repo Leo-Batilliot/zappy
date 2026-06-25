@@ -34,6 +34,7 @@ Renderer::Renderer(unsigned int width, unsigned int height)
         std::cerr << "Police introuvable (gui/assets/DejaVuSans.ttf) : "
                   << "le GUI fonctionnera sans texte." << std::endl;
 
+    _windowSize = {width, height};
     _center = {mapAreaWidth() / 2.f, static_cast<float>(height) / 2.f};
     updateMapView();
 }

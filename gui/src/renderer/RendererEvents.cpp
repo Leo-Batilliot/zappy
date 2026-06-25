@@ -6,6 +6,7 @@
 */
 
 #include "renderer/Renderer.hpp"
+#include "renderer/RendererPrivate.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -22,9 +23,27 @@ UiAction Renderer::handleEvents(const World &world)
             case sf::Event::Closed:
                 _window.close();
                 break;
-            case sf::Event::Resized:
+            case sf::Event::Resized: {
+                float oldMapW = std::max(static_cast<float>(_windowSize.x) - PANEL_WIDTH, 1.f);
+                float oldMapH = static_cast<float>(_windowSize.y);
+                float oldTile = std::min(oldMapW / world.width(), oldMapH / world.height());
+                float oldOffsetX = (oldMapW - oldTile * world.width()) / 2.f;
+                float oldOffsetY = (oldMapH - oldTile * world.height()) / 2.f;
+                float gameCx = (oldTile > 0.f) ? (_center.x - oldOffsetX) / oldTile : world.width() * 0.5f;
+                float gameCy = (oldTile > 0.f) ? (_center.y - oldOffsetY) / oldTile : world.height() * 0.5f;
+
+                _windowSize = {event.size.width, event.size.height};
+                float newMapW = std::max(static_cast<float>(_windowSize.x) - PANEL_WIDTH, 1.f);
+                float newMapH = static_cast<float>(_windowSize.y);
+                float newTile = std::min(newMapW / world.width(), newMapH / world.height());
+                float newOffsetX = (newMapW - newTile * world.width()) / 2.f;
+                float newOffsetY = (newMapH - newTile * world.height()) / 2.f;
+
+                _center.x = newOffsetX + gameCx * newTile;
+                _center.y = newOffsetY + gameCy * newTile;
                 updateMapView();
                 break;
+            }
             case sf::Event::MouseWheelScrolled:
                 _zoom *= event.mouseWheelScroll.delta > 0 ? 0.9f : 1.1f;
                 _zoom = std::clamp(_zoom, 0.2f, 4.f);
@@ -40,6 +59,13 @@ UiAction Renderer::handleEvents(const World &world)
                 switch (event.key.code) {
                     case sf::Keyboard::Escape:
                         _window.close();
+                        break;
+                    case sf::Keyboard::Space:
+                        _center = {
+                            mapAreaWidth() / 2.f,
+                            static_cast<float>(_window.getSize().y) / 2.f
+                        };
+                        updateMapView();
                         break;
                     case sf::Keyboard::Add:
                     case sf::Keyboard::Equal:

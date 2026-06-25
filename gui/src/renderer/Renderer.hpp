@@ -65,6 +65,7 @@ private:
     sf::View _mapView;
     float _zoom = 1.f;
     sf::Vector2f _center;
+    sf::Vector2u _windowSize;
     int _selectedPlayer = -1;
     int _selectedTileX = -1;
     int _selectedTileY = -1;
