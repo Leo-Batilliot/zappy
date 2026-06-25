@@ -11,6 +11,14 @@ static constexpr std::array<std::string_view, RESOURCE_COUNT> ASSET_NAMES = {
     "apple", "ore1", "ore2", "ore3", "ore4", "ore5", "ore6",
 };
 
+static constexpr std::array<std::string_view, 4> TREE_NAMES = {
+    "tree001", "tree002", "tree003", "tree004",
+};
+
+static constexpr std::array<std::string_view, 3> GHOST_NAMES = {
+    "ghost", "ghost_right", "ghost_special",
+};
+
 static constexpr std::size_t PALETTE_SIZE = 8;
 static const std::array<sf::Color, PALETTE_SIZE> TEAM_PALETTE = {
     sf::Color(220, 80, 80),
@@ -44,6 +52,28 @@ Renderer::Renderer(unsigned int width, unsigned int height)
             if (std::filesystem::exists(path) && _resTextures[r].loadFromFile(path)) {
                 _resTextures[r].setSmooth(true);
                 _resTexturesLoaded[r] = true;
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < TREE_TEX_COUNT; ++i) {
+        for (std::string_view base : std::array<std::string_view, 2>{"gui/assets/", "assets/"}) {
+            std::string path = std::string(base) + std::string(TREE_NAMES[i]) + ".png";
+            if (std::filesystem::exists(path) && _treeTextures[i].loadFromFile(path)) {
+                _treeTextures[i].setSmooth(true);
+                _treeTexturesLoaded[i] = true;
+                break;
+            }
+        }
+    }
+
+    for (int i = 0; i < GHOST_TEX_COUNT; ++i) {
+        for (std::string_view base : std::array<std::string_view, 2>{"gui/assets/", "assets/"}) {
+            std::string path = std::string(base) + std::string(GHOST_NAMES[i]) + ".png";
+            if (std::filesystem::exists(path) && _ghostTextures[i].loadFromFile(path)) {
+                _ghostTextures[i].setSmooth(true);
+                _ghostTexturesLoaded[i] = true;
                 break;
             }
         }
@@ -94,6 +124,7 @@ void Renderer::render(const World &world, bool connectionLost)
     Layout l = computeLayout(world);
 
     _window.setView(_mapView);
+    drawForest(world, l);
     drawGrid(world, l);
     drawIncantations(world, l);
     drawSelection(world, l);
@@ -105,6 +136,7 @@ void Renderer::render(const World &world, bool connectionLost)
     sf::Vector2u ws = _window.getSize();
     _window.setView(sf::View(sf::FloatRect(0.f, 0.f,
         static_cast<float>(ws.x), static_cast<float>(ws.y))));
+    drawResourceCounts(world, l);
     drawPanel(world);
     if (world.isGameOver())
         drawGameOver(world);

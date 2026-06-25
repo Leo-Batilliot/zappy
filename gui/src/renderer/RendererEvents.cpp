@@ -50,10 +50,13 @@ UiAction Renderer::handleEvents(const World &world)
                 updateMapView();
                 break;
             case sf::Event::MouseButtonPressed:
-                if (event.mouseButton.button == sf::Mouse::Left &&
-                    event.mouseButton.x < mapAreaWidth())
-                    action = handleClick(world, event.mouseButton.x,
-                        event.mouseButton.y);
+                if (event.mouseButton.button == sf::Mouse::Left) {
+                    if (event.mouseButton.x < static_cast<int>(mapAreaWidth()))
+                        action = handleClick(world, event.mouseButton.x,
+                            event.mouseButton.y);
+                    else
+                        handlePanelClick(event.mouseButton.y);
+                }
                 break;
             case sf::Event::KeyPressed:
                 switch (event.key.code) {
@@ -90,6 +93,12 @@ UiAction Renderer::handleEvents(const World &world)
                     case sf::Keyboard::Down:
                         _center.y += PAN_STEP * _zoom;
                         updateMapView();
+                        break;
+                    case sf::Keyboard::R:
+                        _showResources = !_showResources;
+                        break;
+                    case sf::Keyboard::T:
+                        _showTrees = !_showTrees;
                         break;
                     default:
                         break;

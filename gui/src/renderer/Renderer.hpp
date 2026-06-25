@@ -45,6 +45,10 @@ private:
     void updateMapView();
     UiAction handleClick(const World &world, int px, int py);
 
+    static constexpr int TREE_TEX_COUNT  = 4;
+    static constexpr int GHOST_TEX_COUNT = 3; // 0=basic 1=right 2=special
+
+    void drawForest(const World &world, const Layout &l);
     void drawGrid(const World &world, const Layout &l);
     void drawIncantations(const World &world, const Layout &l);
     void drawResources(const World &world, const Layout &l);
@@ -59,6 +63,8 @@ private:
     void drawResourceIcon(int r, float cx, float cy, float size);
     void drawText(std::string_view text, float x, float y,
                   unsigned int size, sf::Color color);
+    void drawResourceCounts(const World &world, const Layout &l);
+    void handlePanelClick(int py);
     sf::Color teamColor(const World &world, const std::string &team) const;
 
     sf::RenderWindow _window;
@@ -66,11 +72,20 @@ private:
     bool _fontLoaded = false;
     std::array<sf::Texture, RESOURCE_COUNT> _resTextures;
     std::array<bool, RESOURCE_COUNT> _resTexturesLoaded{};
+    std::array<sf::Texture, TREE_TEX_COUNT> _treeTextures;
+    std::array<bool, TREE_TEX_COUNT> _treeTexturesLoaded{};
+    std::array<sf::Texture, GHOST_TEX_COUNT> _ghostTextures;
+    std::array<bool, GHOST_TEX_COUNT> _ghostTexturesLoaded{};
     sf::View _mapView;
-    float _zoom = 1.f;
+    float _zoom = 1.25f;
     sf::Vector2f _center;
     sf::Vector2u _windowSize;
     int _selectedPlayer = -1;
     int _selectedTileX = -1;
     int _selectedTileY = -1;
+    bool _showResources = true;
+    bool _showTrees = true;
+    // Section indices: 0=Equipes 1=Ressources 2=Controles 3=Selection
+    std::array<bool, 4>  _secExpanded{true, true, true, true};
+    std::array<float, 4> _secHeaderY{};
 };
