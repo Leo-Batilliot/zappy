@@ -1,3 +1,4 @@
+
 # Zappy — Documentation du serveur
 
 Documentation technique exhaustive du serveur `zappy_server`.
@@ -53,21 +54,30 @@ make re         # fclean puis all
 ./zappy_server -p port -x width -y height -n name1 name2 ... -c clientsNb -f freq
 ```
 
-| Flag | Type | Description | Obligatoire | Défaut |
-|------|------|-------------|:-----------:|:------:|
-| `-p` | int | Port d'écoute (1..65535) | ✅ | — |
-| `-x` | int | Largeur de la carte (> 0) | ✅ | — |
-| `-y` | int | Hauteur de la carte (> 0) | ✅ | — |
-| `-n` | liste | Noms d'équipes (≥ 1, uniques) | ✅ | — |
-| `-c` | int | Nombre de clients (slots) par équipe (> 0) | ✅ | — |
-| `-f` | int | Inverse de l'unité de temps (> 0) | ❌ | `100` |
-| `--help` | — | Affiche l'aide et quitte (code 0) | — | — |
+**Tous les arguments sont optionnels** : chaque flag a une valeur par défaut
+cohérente, et le serveur démarre même sans aucun argument (`./zappy_server`).
+Chaque valeur est bornée par un intervalle `[min, max]` ; toute valeur hors
+borne est rejetée.
+
+| Flag | Type | Description | Intervalle | Défaut |
+|------|------|-------------|:----------:|:------:|
+| `-p` | int | Port d'écoute | `1..65535` | `4242` |
+| `-x` | int | Largeur de la carte | `1..1000` | `10` |
+| `-y` | int | Hauteur de la carte | `1..1000` | `10` |
+| `-n` | liste | Noms d'équipes (uniques) | `1..100` équipes | `team1` |
+| `-c` | int | Nombre de clients (slots) par équipe | `1..1000` | `1` |
+| `-f` | int | Inverse de l'unité de temps | `1..10000` | `100` |
+| `--help` | — | Affiche l'aide (avec bornes + défauts) et quitte (code 0) | — | — |
 
 - `freq` est la **fréquence** : plus elle est grande, plus le jeu est rapide.
   Une action de durée `d` unités prend `d / freq` secondes.
+- Les bornes et les défauts sont définis comme constantes dans
+  `src/args/Parser.hpp` (`DEFAULT_*`, `PORT_MIN/MAX`, `DIMENSION_MIN/MAX`,
+  `CLIENTS_MIN/MAX`, `FREQ_MIN/MAX`, `TEAMS_MIN/MAX`).
 - Le nom d'équipe `GRAPHIC` est **réservé** (mot-clé de connexion GUI) et
   refusé à la validation.
-- Toute erreur d'argument lève une `ArgError`, affichée sur `stderr`, et le
+- Toute erreur d'argument (valeur non entière, hors borne, équipe en double,
+  argument inconnu) lève une `ArgError`, affichée sur `stderr`, et le
   programme se termine avec le **code 84**.
 
 Flux de `main` (`src/main.cpp`) :
@@ -769,24 +779,28 @@ class NetworkError : public Error;  // where = "network"
 | `parse(argc, argv) → Config` | Analyse complète + validation. |
 | `printUsage()` | Affiche l'aide (`USAGE: ...`). |
 | `parseInt(value, flag)` *(privé)* | Entier strict via `std::from_chars` ; lève `ArgError` si la chaîne n'est pas **entièrement** un entier. |
-| `validate(cfg)` *(privé)* | Contrôles sémantiques (bornes, équipes). |
+| `validate(cfg)` *(privé)* | Contrôles sémantiques (bornes `[min, max]`, équipes). |
+| `checkRange(v, min, max, name)` *(libre, privé)* | Vérifie qu'un entier est dans `[min, max]`, sinon `ArgError` détaillée. |
 
-**`Config`** : `port, width, height, clients, freq=100` (int) et
-`teams` (`vector<string>`).
+**`Config`** : `port, width, height, clients, freq` (int) et
+`teams` (`vector<string>`), **tous préinitialisés à leur défaut**
+(`DEFAULT_PORT=4242`, `DEFAULT_WIDTH=10`, `DEFAULT_HEIGHT=10`,
+`DEFAULT_CLIENTS=1`, `DEFAULT_FREQ=100`).
 
 Analyse :
 
+- **Aucun flag n'est obligatoire** : un flag absent garde sa valeur par défaut.
 - Flags entiers `-p/-x/-y/-c/-f` mappés vers les champs de `Config` ; valeur
-  manquante → `ArgError`.
-- `-n` consomme tous les arguments suivants **jusqu'au prochain `-…`**.
+  manquante après le flag → `ArgError`.
+- `-n` consomme tous les arguments suivants **jusqu'au prochain `-…`**. Si
+  aucune équipe n'est fournie, l'équipe par défaut `team1` est ajoutée.
 - Argument inconnu → `ArgError`.
-- Présence obligatoire de `-p -x -y -n -c` (message explicite avec la
-  description du flag manquant). `-f` est optionnel.
 
-Validation (`validate`) :
+Validation (`validate`) — bornes définies dans `Parser.hpp` :
 
-- `port ∈ [1, 65535]`, `width > 0`, `height > 0`, `clients > 0`, `freq > 0`,
-  au moins une équipe.
+- `port ∈ [1, 65535]`, `width ∈ [1, 1000]`, `height ∈ [1, 1000]`,
+  `clients ∈ [1, 1000]`, `freq ∈ [1, 10000]`, nombre d'équipes ∈ `[1, 100]`.
+  Tout dépassement produit un message `... must be in range MIN..MAX (got V)`.
 - `GRAPHIC` interdit (réservé GUI), pas de doublon de nom d'équipe.
 
 ---
