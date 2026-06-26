@@ -72,25 +72,27 @@ def find_nearest(tiles: list[list[str]], resource: str) -> Optional[int]:
 #        2  1  8      1 devant, 3 gauche, 7 droite, 5 derrière, 0 = même case
 #        3 [moi] 7
 #        4  5  6
-# Homing découplé : une seule action par beacon (avancer si la source est devant
-# K=1,2,8 ; sinon pivoter d'un cran), réévalué au beacon suivant.
+# Homing : on PIVOTE *et* on AVANCE dans le même cycle pour que chaque beacon donne
+# une vraie progression (avant, un simple pivot « gâchait » un beacon sans avancer,
+# d'où une convergence deux fois trop lente). On garde un seul Forward pour ne pas
+# survoler la case du leader (la direction est réévaluée au beacon suivant).
 _BROADCAST_MOVES: dict[int, list[str]] = {
-    0: [],
-    1: ['Forward'],
-    2: ['Forward'],
-    3: ['Left'],
-    4: ['Left'],
-    5: ['Left'],
-    6: ['Right'],
-    7: ['Right'],
-    8: ['Forward'],
+    0: [],                              # même case : on est arrivé
+    1: ['Forward'],                     # devant
+    2: ['Forward'],                     # devant-gauche
+    8: ['Forward'],                     # devant-droite
+    3: ['Left', 'Forward'],             # gauche
+    4: ['Left', 'Forward'],             # arrière-gauche
+    5: ['Left', 'Left', 'Forward'],     # derrière : demi-tour puis avance
+    6: ['Right', 'Forward'],            # arrière-droite
+    7: ['Right', 'Forward'],            # droite
 }
 
 
 def moves_toward_broadcast(k: int) -> list[str]:
-    """Retourne UN pas de déplacement en direction de la source du broadcast K.
+    """Retourne le déplacement (pivot + avance) vers la source du broadcast K.
 
-    À appeler en boucle (en relançant Look/beacon entre chaque appel)
-    pour se rapprocher progressivement de l'émetteur, sans survoler la case.
+    À appeler en boucle (en relançant Look/beacon entre chaque appel) pour se
+    rapprocher progressivement de l'émetteur, sans survoler sa case.
     """
     return list(_BROADCAST_MOVES.get(k, []))
