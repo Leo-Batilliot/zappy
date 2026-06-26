@@ -68,23 +68,29 @@ def find_nearest(tiles: list[list[str]], resource: str) -> Optional[int]:
     return None
 
 
+# Direction du son K (sujet p.6), vue du récepteur orienté « devant » :
+#        2  1  8      1 devant, 3 gauche, 7 droite, 5 derrière, 0 = même case
+#        3 [moi] 7
+#        4  5  6
+# Homing découplé : une seule action par beacon (avancer si la source est devant
+# K=1,2,8 ; sinon pivoter d'un cran), réévalué au beacon suivant.
 _BROADCAST_MOVES: dict[int, list[str]] = {
     0: [],
     1: ['Forward'],
-    2: ['Left', 'Forward'],
-    3: ['Left', 'Forward'],
-    4: ['Left', 'Left', 'Forward'],
-    5: ['Right', 'Right', 'Forward'],
-    6: ['Right', 'Right', 'Forward'],
-    7: ['Right', 'Forward'],
-    8: ['Right', 'Forward'],
+    2: ['Forward'],
+    3: ['Left'],
+    4: ['Left'],
+    5: ['Left'],
+    6: ['Right'],
+    7: ['Right'],
+    8: ['Forward'],
 }
 
 
 def moves_toward_broadcast(k: int) -> list[str]:
-    """Retourne un pas de déplacement en direction de la source du broadcast K.
+    """Retourne UN pas de déplacement en direction de la source du broadcast K.
 
-    À appeler en boucle (en relançant Look/Broadcast entre chaque appel)
-    pour se rapprocher progressivement de l'émetteur.
+    À appeler en boucle (en relançant Look/beacon entre chaque appel)
+    pour se rapprocher progressivement de l'émetteur, sans survoler la case.
     """
     return list(_BROADCAST_MOVES.get(k, []))
