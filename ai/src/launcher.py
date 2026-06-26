@@ -16,10 +16,10 @@ import time
 import os
 
 FORK_SIGNAL = "##FORK##"
-INITIAL_BOTS = 6
-TEAM_TARGET = 6        # plafond dur de bots vivants
+INITIAL_BOTS = 1  # on démarre SEUL : l'équipe se peuple ensuite par fork
+TEAM_TARGET = 12  # plafond dur de bots vivants (marge pour absorber les pertes)
 
-_TS = bool(os.environ.get("ZAPPY_TS"))   # horodatage relatif des logs si défini
+_TS = bool(os.environ.get("ZAPPY_TS"))  # horodatage relatif des logs si défini
 _T0 = time.monotonic()
 
 
@@ -35,7 +35,9 @@ def main() -> int:
         print(f"USAGE: {sys.argv[0]} -p port -n name [-h machine]")
         return 0
 
-    ai_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "zappy_ai")
+    ai_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "zappy_ai"
+    )
     ai_path = os.path.normpath(ai_path)
 
     if not os.path.isfile(ai_path):

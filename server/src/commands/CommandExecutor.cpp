@@ -102,9 +102,6 @@ Pos forwardDelta(Orientation o)
     return {0, 0};
 }
 
-// Direction d'un son/poussée venant du vecteur monde (dx, dy) exprimée dans le
-// repère du récepteur : 0 = même case, puis 1..8 en sens horaire depuis l'avant
-// (1 devant, 3 à droite, 5 derrière, 7 à gauche). Cf. calibration R1.
 int soundDirection(Orientation recv, int dx, int dy)
 {
     if (dx == 0 && dy == 0)
@@ -119,16 +116,16 @@ int soundDirection(Orientation recv, int dx, int dy)
     }
 
     int f = sign(dx * fwdX + dy * fwdY);
-    int r = sign(dx * rgtX + dy * rgtY);
+    int r = sign(dx * rgtX + dy * rgtY); 
 
-    if (f > 0 && r == 0) return 1;
-    if (f > 0 && r > 0)  return 2;
-    if (f == 0 && r > 0) return 3;
-    if (f < 0 && r > 0)  return 4;
-    if (f < 0 && r == 0) return 5;
-    if (f < 0 && r < 0)  return 6;
-    if (f == 0 && r < 0) return 7;
-    return 8; // f > 0 && r < 0
+    if (f > 0 && r == 0) return 1;        // devant
+    if (f > 0 && r < 0)  return 2;        // avant-gauche
+    if (f == 0 && r < 0) return 3;        // gauche
+    if (f < 0 && r < 0)  return 4;        // arrière-gauche
+    if (f < 0 && r == 0) return 5;        // derrière
+    if (f < 0 && r > 0)  return 6;        // arrière-droite
+    if (f == 0 && r > 0) return 7;        // droite
+    return 8;                             // avant-droite
 }
 
 }
