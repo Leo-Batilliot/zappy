@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""
-Script de lancement automatique des bots.
+"""Lancement automatique d'une cohorte de bots (binaire zappy_team).
 
 Usage : ./zappy_team -p PORT -n TEAM [-h HOST]
 
-Lance 2 bots initiaux, puis surveille leur stdout.
-Quand un bot envoie ##FORK## (après une commande Fork réussie),
-le launcher spawn automatiquement un nouveau bot pour occuper l'oeuf.
-
+Lance INITIAL_BOTS bots et surveille leur stdout. Quand un bot émet ##FORK##
+(après un Fork réussi), le launcher spawn un nouveau bot pour occuper l'oeuf.
 Pour tester manuellement sans spawn auto : lancer ./zappy_ai directement.
 """
 
@@ -20,6 +17,10 @@ import os
 
 FORK_SIGNAL = "##FORK##"
 INITIAL_BOTS = 6
+TEAM_TARGET = 6        # plafond dur de bots vivants
+
+_TS = bool(os.environ.get("ZAPPY_TS"))   # horodatage relatif des logs si défini
+_T0 = time.monotonic()
 
 
 def main() -> int:
@@ -36,16 +37,27 @@ def main() -> int:
 
     ai_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "zappy_ai")
     ai_path = os.path.normpath(ai_path)
-    bot_cmd = [ai_path, "-p", str(args.p), "-n", args.n, "-h", args.h]
 
     if not os.path.isfile(ai_path):
         print(f"[LAUNCHER] Erreur : {ai_path} introuvable. Lance 'make' d'abord.")
         return 84
 
     spawn_lock = threading.Lock()
+    next_index = [0]
+    live = []
+
+    def live_count():
+        live[:] = [p for p in live if p.poll() is None]
+        return len(live)
 
     def spawn_bot():
         with spawn_lock:
+            if live_count() >= TEAM_TARGET:
+                return
+            idx = next_index[0]
+            next_index[0] += 1
+            bot_cmd = [ai_path, "-p", str(args.p), "-n", args.n, "-h", args.h]
+            child_env = dict(os.environ, PYTHONUNBUFFERED="1")  # logs non bufferisés
             try:
                 proc = subprocess.Popen(
                     bot_cmd,
@@ -53,16 +65,21 @@ def main() -> int:
                     stderr=subprocess.STDOUT,
                     text=True,
                     bufsize=1,
+                    env=child_env,
                 )
+                live.append(proc)
                 t = threading.Thread(target=monitor, args=(proc,), daemon=True)
                 t.start()
-                print(f"[LAUNCHER] Bot lancé (PID {proc.pid})", flush=True)
+                print(f"[LAUNCHER] Bot #{idx} lancé (PID {proc.pid})", flush=True)
             except Exception as e:
                 print(f"[LAUNCHER] Erreur spawn : {e}", flush=True)
 
     def monitor(proc):
         for line in proc.stdout:
-            sys.stdout.write(line)
+            if _TS:
+                sys.stdout.write(f"{time.monotonic() - _T0:7.1f}  {line}")
+            else:
+                sys.stdout.write(line)
             sys.stdout.flush()
             if line.strip() == FORK_SIGNAL:
                 spawn_bot()

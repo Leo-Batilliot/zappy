@@ -1,9 +1,10 @@
 from enum import Enum, auto
 from dataclasses import dataclass
-from typing import Optional
 
 RESOURCES = ['food', 'linemate', 'deraumere', 'sibur', 'mendiane', 'phiras', 'thystame']
+STONES = RESOURCES[1:]
 
+# (nb_players, linemate, deraumere, sibur, mendiane, phiras, thystame)
 ELEVATION_REQUIREMENTS: dict[int, tuple[int, ...]] = {
     1: (1, 1, 0, 0, 0, 0, 0),
     2: (2, 1, 1, 1, 0, 0, 0),
@@ -14,21 +15,24 @@ ELEVATION_REQUIREMENTS: dict[int, tuple[int, ...]] = {
     7: (6, 2, 2, 2, 2, 2, 1),
 }
 
-FOOD_CRITICAL = 10
-FOOD_SAFE = 20
+MAX_LEVEL = 8
+
+# Quantité max d'une pierre requise sur un palier (tous paliers confondus).
+STONE_QUOTA: dict[str, int] = {
+    stone: max(req[1 + i] for req in ELEVATION_REQUIREMENTS.values())
+    for i, stone in enumerate(STONES)
+}
 
 
 class ActionState(Enum):
     """États de la machine à états (FSM) du bot."""
-    SURVIVE = auto()
-    COLLECT = auto()
-    INCANTATE = auto()
-    FORK = auto()
-    MOVE_TO_GATHER = auto()
-    WAIT_FOR_TEAM = auto()
-    ARRIVED = auto()
-    SPAWN_ALLY = auto()
-    WAIT_INCANTATION = auto()
+    SURVIVE = auto()      # food critique : ne fait que chercher à manger
+    COLLECT = auto()      # rassemble le set de pierres du niveau courant
+    LEAD = auto()         # je suis le point de rendez-vous : immobile, je compte
+    FOLLOW = auto()       # je converge vers le leader (homing sur beacon)
+    WAIT_TILE = auto()    # arrivé sur la case du leader : pierres déposées, j'attends
+    INCANT = auto()       # le leader a lancé l'incantation, attente du résultat
+    DONE = auto()         # niveau max atteint
 
 
 @dataclass
@@ -42,27 +46,26 @@ class Inventory:
     phiras: int = 0
     thystame: int = 0
 
+    def stone_counts(self) -> list[int]:
+        return [self.linemate, self.deraumere, self.sibur,
+                self.mendiane, self.phiras, self.thystame]
+
     def has_stones_for(self, level: int) -> bool:
-        """Retourne True si l'inventaire couvre les besoins en pierres pour l'élévation depuis level."""
+        """True si l'inventaire couvre un set complet de pierres pour ce niveau."""
         req = ELEVATION_REQUIREMENTS.get(level)
         if req is None:
             return False
         _, *needed = req
-        actual = [self.linemate, self.deraumere, self.sibur,
-                  self.mendiane, self.phiras, self.thystame]
-        return all(have >= need for have, need in zip(actual, needed))
+        return all(have >= need for have, need in zip(self.stone_counts(), needed))
 
     def missing_stones_for(self, level: int) -> dict[str, int]:
-        """Retourne un dict {pierre: quantité manquante} pour l'élévation depuis level."""
+        """{pierre: quantité manquante} pour atteindre un set complet du niveau."""
         req = ELEVATION_REQUIREMENTS.get(level)
         if req is None:
             return {}
         _, *needed = req
-        stone_names = RESOURCES[1:]
-        actual = [self.linemate, self.deraumere, self.sibur,
-                  self.mendiane, self.phiras, self.thystame]
         return {
             name: need - have
-            for name, need, have in zip(stone_names, needed, actual)
+            for name, need, have in zip(STONES, needed, self.stone_counts())
             if need > have
         }
