@@ -227,11 +227,22 @@ constexpr int    INITIAL_FOOD_COUNT = 10;    // "food" dans l'inventaire initial
 
 enum class Orientation { North=1, East=2, South=3, West=4 };
 using Inventory = std::array<int, RESOURCE_COUNT>;
-struct Pos { int x; int y; };
+
+class Pos {
+public:
+    Pos() = default;
+    Pos(int x, int y);
+    int x() const; int y() const;
+    void setX(int x); void setY(int y);
+};
 
 const char *resourceName(int idx);  // index → "food", "linemate", ...
 ```
 
+- Les entités du modèle (`Pos`, `Tile`, `Player`, `Egg`, `Team`) sont des
+  **classes** à données privées : l'état n'est accessible que par accesseurs
+  (`x()`/`setX()`, `pos()`/`setPos()`, …). Les conteneurs (`Inventory`,
+  vecteurs d'ids) sont exposés par référence (`resources()`, `players()`, …).
 - `DENSITY[r]` : densité cible d'une ressource = `width*height*DENSITY[r]`
   exemplaires sur la carte (minimum 1).
 - `resourceName` renvoie `""` pour un index hors borne (robustesse).
@@ -239,32 +250,39 @@ const char *resourceName(int idx);  // index → "food", "linemate", ...
 ### `Tile.hpp`
 
 ```cpp
-struct Tile {
-    Inventory resources{};      // quantité de chaque ressource sur la case
-    std::vector<int> players;   // ids des joueurs présents
-    std::vector<int> eggs;      // ids des œufs présents
+class Tile {
+public:
+    Inventory &resources();                 // quantité de chaque ressource
+    std::vector<int> &players();            // ids des joueurs présents
+    std::vector<int> &eggs();               // ids des œufs présents
+    // + surcharges const de chaque accesseur
 };
 ```
 
 ### `Player.hpp`
 
 ```cpp
-struct Player {
-    int id;
-    std::string teamName;
-    int connFd = -1;                  // socket associé
-    Pos pos{};
-    Orientation orient = North;
-    int level = 1;
-    Inventory inventory{};            // inventaire (food initialisé à 10)
-    int lifeUnits = INITIAL_FOOD_UNITS;
+class Player {
+public:
     enum class State { Idle, Busy, Incanting, Dead };
-    State state = State::Idle;
-    std::deque<std::string> cmdQueue; // commandes en attente (cap. 10)
-    uint64_t currentEventId = 0;      // événement de la commande en cours
-    uint64_t foodEventId = 0;         // événement de consommation de nourriture
+
+    int id() const;                   void setId(int);
+    const std::string &teamName() const; void setTeamName(const std::string &);
+    int connFd() const;               void setConnFd(int);          // socket associé
+    Pos pos() const;                  void setPos(Pos);
+    Orientation orient() const;       void setOrient(Orientation);
+    int level() const;                void setLevel(int);
+    Inventory &inventory();           // inventaire (food initialisé à 10)
+    int lifeUnits() const;            void setLifeUnits(int);
+    State state() const;              void setState(State);
+    std::deque<std::string> &cmdQueue();   // commandes en attente (cap. 10)
+    uint64_t currentEventId() const;  void setCurrentEventId(uint64_t);
+    uint64_t foodEventId() const;     void setFoodEventId(uint64_t);
 };
 ```
+
+Valeurs par défaut : `connFd = -1`, `orient = North`, `level = 1`,
+`lifeUnits = INITIAL_FOOD_UNITS`, `state = Idle`, ids d'événements à `0`.
 
 États : `Idle` (au repos), `Busy` (commande temporisée en cours),
 `Incanting` (incantation en cours), `Dead` (mort, en cours de retrait).
@@ -272,13 +290,25 @@ struct Player {
 ### `Egg.hpp` & `Team.hpp`
 
 ```cpp
-struct Egg  { int id; std::string team; Pos pos{}; int layerId = -1; };
-struct Team { std::string name; int freeSlots = 0;
-              std::vector<int> playerIds; std::vector<int> eggIds; };
+class Egg {
+public:
+    int id() const;          void setId(int);
+    const std::string &team() const; void setTeam(const std::string &);
+    Pos pos() const;         void setPos(Pos);
+    int layerId() const;     void setLayerId(int);   // défaut -1
+};
+
+class Team {
+public:
+    const std::string &name() const; void setName(const std::string &);
+    int freeSlots() const;   void setFreeSlots(int); // défaut 0
+    std::vector<int> &playerIds();
+    std::vector<int> &eggIds();
+};
 ```
 
-- `Egg::layerId` : id du joueur ayant pondu l'œuf (`-1` pour les œufs initiaux).
-- `Team::freeSlots` : nombre de places encore disponibles dans l'équipe.
+- `Egg::layerId()` : id du joueur ayant pondu l'œuf (`-1` pour les œufs initiaux).
+- `Team::freeSlots()` : nombre de places encore disponibles dans l'équipe.
   Renvoyé par la commande IA `Connect_nbr` et après chaque connexion.
 
 ### `World.{hpp,cpp}` — la carte torique
@@ -439,7 +469,7 @@ appelle `syncPollOut`. C'est le point d'entrée unique utilisé par
 
 - **`scheduleFoodTick(playerId)`** : planifie un événement à
   `deadlineFor(FOOD_LIFE_UNITS, freq)` (= `126/freq` s) qui appellera
-  `consumeFood`. Stocke l'id dans `player.foodEventId`.
+  `consumeFood`. Stocke l'id via `player.setFoodEventId(...)`.
 - **`consumeFood(playerId)`** : décrémente `food` d'une unité et `lifeUnits`
   de `FOOD_LIFE_UNITS`. Si `food ≤ 0` → `killPlayer`. Sinon notifie l'inventaire
   (`pin`) et **replanifie** le prochain tick.

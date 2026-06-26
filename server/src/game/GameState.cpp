@@ -8,8 +8,8 @@ GameState::GameState(const Config &cfg) : _world(cfg.width, cfg.height)
 
     for (const std::string &name : cfg.teams) {
         Team t;
-        t.name = name;
-        t.freeSlots = cfg.clients;
+        t.setName(name);
+        t.setFreeSlots(cfg.clients);
         _teams[name] = std::move(t);
     }
 
@@ -30,16 +30,16 @@ int GameState::createPlayer(const std::string &teamName, int connFd, Pos pos, Or
     int id = _nextPlayerId++;
 
     Player p;
-    p.id = id;
-    p.teamName = teamName;
-    p.connFd = connFd;
-    p.pos = pos;
-    p.orient = orient;
-    p.inventory[static_cast<int>(Resource::Food)] = INITIAL_FOOD_COUNT;
+    p.setId(id);
+    p.setTeamName(teamName);
+    p.setConnFd(connFd);
+    p.setPos(pos);
+    p.setOrient(orient);
+    p.inventory()[static_cast<int>(Resource::Food)] = INITIAL_FOOD_COUNT;
 
     _players[id] = std::move(p);
     _world.placePlayer(id, pos);
-    _teams.at(teamName).playerIds.push_back(id);
+    _teams.at(teamName).playerIds().push_back(id);
     if (connFd != -1)
         _fdToPlayerId[connFd] = id;
 
@@ -53,12 +53,12 @@ void GameState::removePlayer(int id)
         return;
 
     Player &p = it->second;
-    _world.removePlayer(id, p.pos);
+    _world.removePlayer(id, p.pos());
 
-    if (p.connFd != -1)
-        _fdToPlayerId.erase(p.connFd);
+    if (p.connFd() != -1)
+        _fdToPlayerId.erase(p.connFd());
 
-    auto &pids = _teams.at(p.teamName).playerIds;
+    auto &pids = _teams.at(p.teamName()).playerIds();
     pids.erase(std::remove(pids.begin(), pids.end(), id), pids.end());
 
     _players.erase(it);
@@ -75,14 +75,14 @@ int GameState::createEgg(const std::string &teamName, Pos pos, int layerId)
     int id = _nextEggId++;
 
     Egg e;
-    e.id = id;
-    e.team = teamName;
-    e.pos = pos;
-    e.layerId = layerId;
+    e.setId(id);
+    e.setTeam(teamName);
+    e.setPos(pos);
+    e.setLayerId(layerId);
 
     _eggs[id] = std::move(e);
     _world.placeEgg(id, pos);
-    _teams.at(teamName).eggIds.push_back(id);
+    _teams.at(teamName).eggIds().push_back(id);
 
     return id;
 }
@@ -94,9 +94,9 @@ void GameState::removeEgg(int id)
         return;
 
     Egg &e = it->second;
-    _world.removeEgg(id, e.pos);
+    _world.removeEgg(id, e.pos());
 
-    auto &eids = _teams.at(e.team).eggIds;
+    auto &eids = _teams.at(e.team()).eggIds();
     eids.erase(std::remove(eids.begin(), eids.end(), id), eids.end());
 
     _eggs.erase(it);
@@ -105,18 +105,18 @@ void GameState::removeEgg(int id)
 int GameState::hatchEgg(const std::string &teamName)
 {
     Team &t = _teams.at(teamName);
-    if (t.eggIds.empty())
+    if (t.eggIds().empty())
         return -1;
 
-    std::uniform_int_distribution<int> dist(0, static_cast<int>(t.eggIds.size()) - 1);
+    std::uniform_int_distribution<int> dist(0, static_cast<int>(t.eggIds().size()) - 1);
     std::mt19937 rng{std::random_device{}()};
     int idx = dist(rng);
 
-    return t.eggIds[idx];
+    return t.eggIds()[idx];
 }
 
 bool GameState::hasFreeSlot(const std::string &name) const
 {
     auto it = _teams.find(name);
-    return it != _teams.end() && it->second.freeSlots > 0;
+    return it != _teams.end() && it->second.freeSlots() > 0;
 }

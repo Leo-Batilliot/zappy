@@ -16,13 +16,13 @@ Pos World::wrap(int x, int y) const
 Tile& World::at(int x, int y)
 {
     Pos p = wrap(x, y);
-    return _grid[idx(p.x, p.y)];
+    return _grid[idx(p.x(), p.y())];
 }
 
 const Tile& World::at(int x, int y) const
 {
     Pos p = wrap(x, y);
-    return _grid[idx(p.x, p.y)];
+    return _grid[idx(p.x(), p.y())];
 }
 
 Pos World::step(Pos pos, Orientation orient, int n) const
@@ -34,17 +34,17 @@ Pos World::step(Pos pos, Orientation orient, int n) const
         case Orientation::South: dy = +1; break;
         case Orientation::West: dx = -1; break;
     }
-    return wrap(pos.x + dx * n, pos.y + dy * n);
+    return wrap(pos.x() + dx * n, pos.y() + dy * n);
 }
 
 void World::placePlayer(int id, Pos pos)
 {
-    at(pos.x, pos.y).players.push_back(id);
+    at(pos.x(), pos.y()).players().push_back(id);
 }
 
 void World::removePlayer(int id, Pos pos)
 {
-    auto &v = at(pos.x, pos.y).players;
+    auto &v = at(pos.x(), pos.y()).players();
     v.erase(std::remove(v.begin(), v.end(), id), v.end());
 }
 
@@ -56,12 +56,12 @@ void World::movePlayer(int id, Pos from, Pos to)
 
 void World::placeEgg(int id, Pos pos)
 {
-    at(pos.x, pos.y).eggs.push_back(id);
+    at(pos.x(), pos.y()).eggs().push_back(id);
 }
 
 void World::removeEgg(int id, Pos pos)
 {
-    auto &v = at(pos.x, pos.y).eggs;
+    auto &v = at(pos.x(), pos.y()).eggs();
     v.erase(std::remove(v.begin(), v.end(), id), v.end());
 }
 
@@ -76,7 +76,7 @@ void World::distributeResource(int r, int count)
         return;
     std::uniform_int_distribution<int> dist(0, _width * _height - 1);
     for (int i = 0; i < count; ++i)
-        _grid[dist(_rng)].resources[r]++;
+        _grid[dist(_rng)].resources()[r]++;
 }
 
 void World::initResources()
@@ -92,7 +92,7 @@ std::vector<Pos> World::refill()
     for (int r = 0; r < RESOURCE_COUNT; ++r) {
         int present = 0;
         for (const Tile &t : _grid)
-            present += t.resources[r];
+            present += t.resources()[r];
 
         int missing = resourceTarget(r) - present;
         if (missing <= 0)
@@ -101,7 +101,7 @@ std::vector<Pos> World::refill()
         std::uniform_int_distribution<int> dist(0, _width * _height - 1);
         for (int i = 0; i < missing; ++i) {
             int tileIdx = dist(_rng);
-            _grid[tileIdx].resources[r]++;
+            _grid[tileIdx].resources()[r]++;
             modified[tileIdx] = true;
         }
     }
@@ -115,8 +115,8 @@ std::vector<Pos> World::refill()
 
 Pos World::shortestDelta(Pos from, Pos to) const
 {
-    int dx = to.x - from.x;
-    int dy = to.y - from.y;
+    int dx = to.x() - from.x();
+    int dy = to.y() - from.y();
 
     if (dx > _width / 2)
         dx -= _width;
@@ -145,8 +145,8 @@ std::vector<Pos> World::visibleTiles(Pos pos, Orientation orient, int level) con
 
     for (int line = 0; line <= level; ++line) {
         for (int off = -line; off <= line; ++off) {
-            int wx = pos.x + fwdX * line + rgtX * off;
-            int wy = pos.y + fwdY * line + rgtY * off;
+            int wx = pos.x() + fwdX * line + rgtX * off;
+            int wy = pos.y() + fwdY * line + rgtY * off;
             tiles.push_back(wrap(wx, wy));
         }
     }

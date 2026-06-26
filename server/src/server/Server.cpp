@@ -215,7 +215,7 @@ void Server::handleGuiLine(Client &client, const std::string &line)
     } else if (cmd == "tna") {
         for (const auto &[name, team] : _state.teams()) {
             (void)name;
-            _gui.tna(client, team.name);
+            _gui.tna(client, team.name());
         }
     } else if (cmd == "sgt") {
         _gui.sgt(client, _config.freq);
@@ -260,13 +260,13 @@ void Server::doHandshake(Client &client, const std::string &teamName)
     }
 
     Team &t = _state.team(teamName);
-    Pos pos = _state.egg(eggId).pos;
+    Pos pos = _state.egg(eggId).pos();
     int pid = _state.createPlayer(teamName, client.fd(), pos, randomOrientation());
     _state.removeEgg(eggId);
-    t.freeSlots--;
+    t.setFreeSlots(t.freeSlots() - 1);
 
     client.setState(Client::State::Ai);
-    client.queueWrite(std::to_string(t.freeSlots) + "\n");
+    client.queueWrite(std::to_string(t.freeSlots()) + "\n");
     client.queueWrite(std::to_string(_config.width) + " " + std::to_string(_config.height) + "\n");
 
     _gui.ebo(eggId);
@@ -281,7 +281,7 @@ void Server::sendToPlayer(int playerId, const std::string &msg)
 {
     if (!_state.hasPlayer(playerId))
         return;
-    int fd = _state.player(playerId).connFd;
+    int fd = _state.player(playerId).connFd();
     auto it = _clients.find(fd);
     if (it == _clients.end())
         return;
@@ -294,8 +294,8 @@ void Server::scheduleFoodTick(int playerId)
     if (!_state.hasPlayer(playerId))
         return;
     TimePoint due = deadlineFor(FOOD_LIFE_UNITS, _config.freq);
-    _state.player(playerId).foodEventId =
-        _scheduler.schedule(due, [this, playerId]() { consumeFood(playerId); });
+    _state.player(playerId).setFoodEventId(
+        _scheduler.schedule(due, [this, playerId]() { consumeFood(playerId); }));
 }
 
 void Server::consumeFood(int playerId)
@@ -304,10 +304,10 @@ void Server::consumeFood(int playerId)
         return;
 
     Player &p = _state.player(playerId);
-    p.inventory[static_cast<int>(Resource::Food)] -= 1;
-    p.lifeUnits -= FOOD_LIFE_UNITS;
+    p.inventory()[static_cast<int>(Resource::Food)] -= 1;
+    p.setLifeUnits(p.lifeUnits() - FOOD_LIFE_UNITS);
 
-    if (p.inventory[static_cast<int>(Resource::Food)] <= 0) {
+    if (p.inventory()[static_cast<int>(Resource::Food)] <= 0) {
         killPlayer(playerId);
         return;
     }
@@ -321,12 +321,12 @@ void Server::killPlayer(int playerId)
         return;
 
     Player &p = _state.player(playerId);
-    int fd = p.connFd;
+    int fd = p.connFd();
 
-    if (p.currentEventId)
-        _scheduler.cancel(p.currentEventId);
-    if (p.foodEventId)
-        _scheduler.cancel(p.foodEventId);
+    if (p.currentEventId())
+        _scheduler.cancel(p.currentEventId());
+    if (p.foodEventId())
+        _scheduler.cancel(p.foodEventId());
 
     _gui.pdi(playerId);
 
@@ -347,7 +347,7 @@ void Server::scheduleRespawn()
     _scheduler.schedule(due, [this]() {
         std::vector<Pos> changed = _state.world().refill();
         for (const Pos &c : changed)
-            _gui.bct(c.x, c.y, _state.world().at(c.x, c.y));
+            _gui.bct(c.x(), c.y(), _state.world().at(c.x(), c.y()));
         scheduleRespawn();
     });
 }
@@ -359,8 +359,8 @@ void Server::checkVictory()
 
     for (const auto &[name, team] : _state.teams()) {
         int reached = 0;
-        for (int pid : team.playerIds)
-            if (_state.hasPlayer(pid) && _state.player(pid).level >= 8)
+        for (int pid : team.playerIds())
+            if (_state.hasPlayer(pid) && _state.player(pid).level() >= 8)
                 ++reached;
         if (reached >= 6) {
             _state.finished = true;
@@ -405,10 +405,10 @@ void Server::removeClient(int fd)
     int pid = _state.playerIdByFd(fd);
     if (pid != -1) {
         Player &p = _state.player(pid);
-        if (p.currentEventId)
-            _scheduler.cancel(p.currentEventId);
-        if (p.foodEventId)
-            _scheduler.cancel(p.foodEventId);
+        if (p.currentEventId())
+            _scheduler.cancel(p.currentEventId());
+        if (p.foodEventId())
+            _scheduler.cancel(p.foodEventId());
         _gui.pdi(pid);
         _state.removePlayer(pid);
     }
