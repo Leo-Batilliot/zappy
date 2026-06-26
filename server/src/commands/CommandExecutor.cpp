@@ -10,13 +10,13 @@ namespace {
 
 std::string formatTile(const GameState &state, Pos pos)
 {
-    const Tile &tile = state.world().at(pos.x, pos.y);
+    const Tile &tile = state.world().at(pos.x(), pos.y());
     std::vector<std::string> tokens;
 
-    for (std::size_t i = 0; i < tile.players.size(); ++i)
+    for (std::size_t i = 0; i < tile.players().size(); ++i)
         tokens.emplace_back("player");
     for (int r = 0; r < RESOURCE_COUNT; ++r)
-        for (int c = 0; c < tile.resources[r]; ++c)
+        for (int c = 0; c < tile.resources()[r]; ++c)
             tokens.emplace_back(resourceName(r));
 
     std::string out;
@@ -70,7 +70,7 @@ bool incantationReady(int level, const Tile &tile, std::size_t playerCount)
     if (playerCount < req.players)
         return false;
     for (int r = 1; r < RESOURCE_COUNT; ++r)
-        if (tile.resources[r] < req.stones[r])
+        if (tile.resources()[r] < req.stones[r])
             return false;
     return true;
 }
@@ -146,10 +146,10 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         Player &p = st.player(id);
-        Pos from = p.pos;
-        Pos to = st.world().step(from, p.orient, 1);
+        Pos from = p.pos();
+        Pos to = st.world().step(from, p.orient(), 1);
         st.world().movePlayer(id, from, to);
-        p.pos = to;
+        p.setPos(to);
         _server.gui().ppo(p);
         _server.sendToPlayer(id, AiProtocol::ok());
     };
@@ -159,7 +159,7 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         Player &p = st.player(id);
-        p.orient = turnRight(p.orient);
+        p.setOrient(turnRight(p.orient()));
         _server.gui().ppo(p);
         _server.sendToPlayer(id, AiProtocol::ok());
     };
@@ -169,7 +169,7 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         Player &p = st.player(id);
-        p.orient = turnLeft(p.orient);
+        p.setOrient(turnLeft(p.orient()));
         _server.gui().ppo(p);
         _server.sendToPlayer(id, AiProtocol::ok());
     };
@@ -179,7 +179,7 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         const Player &p = st.player(id);
-        std::vector<Pos> tiles = st.world().visibleTiles(p.pos, p.orient, p.level);
+        std::vector<Pos> tiles = st.world().visibleTiles(p.pos(), p.orient(), p.level());
         std::vector<std::string> rendered;
         rendered.reserve(tiles.size());
         for (const Pos &t : tiles)
@@ -198,7 +198,7 @@ void CommandExecutor::registerCommands()
         GameState &st = _server.state();
         if (!st.hasPlayer(id))
             return;
-        int slots = st.team(st.player(id).teamName).freeSlots;
+        int slots = st.team(st.player(id).teamName()).freeSlots();
         _server.sendToPlayer(id, AiProtocol::connectNbr(slots));
     };
 
@@ -208,17 +208,17 @@ void CommandExecutor::registerCommands()
             return;
         int r = args.empty() ? -1 : resourceIndex(args[0]);
         Player &p = st.player(id);
-        Tile &tile = st.world().at(p.pos.x, p.pos.y);
-        if (r < 0 || tile.resources[r] <= 0) {
+        Tile &tile = st.world().at(p.pos().x(), p.pos().y());
+        if (r < 0 || tile.resources()[r] <= 0) {
             _server.sendToPlayer(id, AiProtocol::ko());
             return;
         }
-        tile.resources[r] -= 1;
-        p.inventory[r] += 1;
+        tile.resources()[r] -= 1;
+        p.inventory()[r] += 1;
         if (r == static_cast<int>(Resource::Food))
-            p.lifeUnits += FOOD_LIFE_UNITS;
+            p.setLifeUnits(p.lifeUnits() + FOOD_LIFE_UNITS);
         _server.gui().pgt(id, r);
-        _server.gui().bct(p.pos.x, p.pos.y, tile);
+        _server.gui().bct(p.pos().x(), p.pos().y(), tile);
         _server.gui().pin(p);
         _server.sendToPlayer(id, AiProtocol::ok());
     };
@@ -229,17 +229,17 @@ void CommandExecutor::registerCommands()
             return;
         int r = args.empty() ? -1 : resourceIndex(args[0]);
         Player &p = st.player(id);
-        if (r < 0 || p.inventory[r] <= 0) {
+        if (r < 0 || p.inventory()[r] <= 0) {
             _server.sendToPlayer(id, AiProtocol::ko());
             return;
         }
-        p.inventory[r] -= 1;
+        p.inventory()[r] -= 1;
         if (r == static_cast<int>(Resource::Food))
-            p.lifeUnits -= FOOD_LIFE_UNITS;
-        Tile &tile = st.world().at(p.pos.x, p.pos.y);
-        tile.resources[r] += 1;
+            p.setLifeUnits(p.lifeUnits() - FOOD_LIFE_UNITS);
+        Tile &tile = st.world().at(p.pos().x(), p.pos().y());
+        tile.resources()[r] += 1;
         _server.gui().pdr(id, r);
-        _server.gui().bct(p.pos.x, p.pos.y, tile);
+        _server.gui().bct(p.pos().x(), p.pos().y(), tile);
         _server.gui().pin(p);
         _server.sendToPlayer(id, AiProtocol::ok());
     };
@@ -249,14 +249,14 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         std::string text = join(args);
-        Pos src = st.player(id).pos;
+        Pos src = st.player(id).pos();
 
         _server.gui().pbc(id, text);
         for (const auto &[pid, p] : st.players()) {
             if (pid == id)
                 continue;
-            Pos d = st.world().shortestDelta(p.pos, src);
-            int k = soundDirection(p.orient, d.x, d.y);
+            Pos d = st.world().shortestDelta(p.pos(), src);
+            int k = soundDirection(p.orient(), d.x(), d.y());
             _server.sendToPlayer(pid, AiProtocol::message(k, text));
         }
         _server.sendToPlayer(id, AiProtocol::ok());
@@ -267,24 +267,22 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         Player &ejector = st.player(id);
-        Pos from = ejector.pos;
-        Pos to = st.world().step(from, ejector.orient, 1);
-        Pos fwd = forwardDelta(ejector.orient);
+        Pos from = ejector.pos();
+        Pos to = st.world().step(from, ejector.orient(), 1);
+        Pos fwd = forwardDelta(ejector.orient());
 
-        // Copie : déplacer les joueurs et retirer les œufs mute le vecteur de la case.
-        Tile &tile = st.world().at(from.x, from.y);
+        Tile &tile = st.world().at(from.x(), from.y());
         std::vector<int> others;
-        for (int pid : tile.players)
+        for (int pid : tile.players())
             if (pid != id && st.hasPlayer(pid))
                 others.push_back(pid);
-        std::vector<int> eggsHere(tile.eggs.begin(), tile.eggs.end());
+        std::vector<int> eggsHere(tile.eggs().begin(), tile.eggs().end());
 
         for (int pid : others) {
             Player &victim = st.player(pid);
             st.world().movePlayer(pid, from, to);
-            victim.pos = to;
-            // La poussée vient de la case du ravisseur, soit le sens opposé à son avancée.
-            int k = soundDirection(victim.orient, -fwd.x, -fwd.y);
+            victim.setPos(to);
+            int k = soundDirection(victim.orient(), -fwd.x(), -fwd.y());
             _server.sendToPlayer(pid, AiProtocol::eject(k));
             _server.gui().ppo(victim);
         }
@@ -292,10 +290,10 @@ void CommandExecutor::registerCommands()
         for (int eid : eggsHere) {
             if (!st.hasEgg(eid))
                 continue;
-            std::string team = st.egg(eid).team;
+            std::string team = st.egg(eid).team();
             st.removeEgg(eid);
-            if (st.isTeam(team) && st.team(team).freeSlots > 0)
-                st.team(team).freeSlots -= 1;
+            if (st.isTeam(team) && st.team(team).freeSlots() > 0)
+                st.team(team).setFreeSlots(st.team(team).freeSlots() - 1);
             _server.gui().edi(eid);
         }
 
@@ -316,10 +314,10 @@ void CommandExecutor::registerCommands()
         if (!st.hasPlayer(id))
             return;
         Player &p = st.player(id);
-        int eggId = st.createEgg(p.teamName, p.pos, id);
-        st.team(p.teamName).freeSlots += 1;
+        int eggId = st.createEgg(p.teamName(), p.pos(), id);
+        st.team(p.teamName()).setFreeSlots(st.team(p.teamName()).freeSlots() + 1);
         const Egg &e = st.egg(eggId);
-        _server.gui().enw(eggId, id, e.pos.x, e.pos.y);
+        _server.gui().enw(eggId, id, e.pos().x(), e.pos().y());
         _server.sendToPlayer(id, AiProtocol::ok());
     };
 
@@ -345,9 +343,11 @@ void CommandExecutor::dispatch(int playerId, const std::string &line)
         return;
 
     Player &p = _server.state().player(playerId);
-    if (p.cmdQueue.size() >= MAX_QUEUE)
+    std::size_t inFlight = (p.state() == Player::State::Busy ||
+                            p.state() == Player::State::Incanting) ? 1 : 0;
+    if (p.cmdQueue().size() + inFlight >= MAX_QUEUE)
         return;
-    p.cmdQueue.push_back(line);
+    p.cmdQueue().push_back(line);
 }
 
 void CommandExecutor::pumpPlayerQueues()
@@ -363,7 +363,7 @@ void CommandExecutor::pumpPlayerQueues()
         if (!_server.state().hasPlayer(id))
             continue;
         Player &p = _server.state().player(id);
-        if (p.state == Player::State::Idle && !p.cmdQueue.empty())
+        if (p.state() == Player::State::Idle && !p.cmdQueue().empty())
             startNext(id);
     }
 }
@@ -372,8 +372,8 @@ void CommandExecutor::startNext(int playerId)
 {
     Player &p = _server.state().player(playerId);
 
-    std::string line = p.cmdQueue.front();
-    p.cmdQueue.pop_front();
+    std::string line = p.cmdQueue().front();
+    p.cmdQueue().pop_front();
 
     std::vector<std::string> tokens = tokenize(line);
     if (tokens.empty())
@@ -398,35 +398,35 @@ void CommandExecutor::startNext(int playerId)
         return;
     }
 
-    p.state = Player::State::Busy;
+    p.setState(Player::State::Busy);
     if (cmd.onStart)
         cmd.onStart(playerId, args);
     TimePoint due = deadlineFor(cmd.durationUnits, _server.freq());
     Handler handler = cmd.handler;
 
-    p.currentEventId = _server.scheduler().schedule(due, [this, playerId, args, handler]() {
+    p.setCurrentEventId(_server.scheduler().schedule(due, [this, playerId, args, handler]() {
         if (!_server.state().hasPlayer(playerId))
             return;
         handler(playerId, args);
         if (_server.state().hasPlayer(playerId)) {
             Player &pl = _server.state().player(playerId);
-            pl.state = Player::State::Idle;
-            pl.currentEventId = 0;
+            pl.setState(Player::State::Idle);
+            pl.setCurrentEventId(0);
         }
-    });
+    }));
 }
 
 void CommandExecutor::startIncantation(int playerId)
 {
     GameState &st = _server.state();
     Player &issuer = st.player(playerId);
-    Pos pos = issuer.pos;
-    int level = issuer.level;
-    Tile &tile = st.world().at(pos.x, pos.y);
+    Pos pos = issuer.pos();
+    int level = issuer.level();
+    Tile &tile = st.world().at(pos.x(), pos.y());
 
     std::vector<int> participants;
-    for (int pid : tile.players)
-        if (st.hasPlayer(pid) && st.player(pid).level == level)
+    for (int pid : tile.players())
+        if (st.hasPlayer(pid) && st.player(pid).level() == level)
             participants.push_back(pid);
 
     if (!incantationReady(level, tile, participants.size())) {
@@ -436,15 +436,15 @@ void CommandExecutor::startIncantation(int playerId)
 
     for (int pid : participants) {
         Player &part = st.player(pid);
-        if (part.currentEventId) {
-            _server.scheduler().cancel(part.currentEventId);
-            part.currentEventId = 0;
+        if (part.currentEventId()) {
+            _server.scheduler().cancel(part.currentEventId());
+            part.setCurrentEventId(0);
         }
-        part.state = Player::State::Incanting;
+        part.setState(Player::State::Incanting);
         _server.sendToPlayer(pid, AiProtocol::elevationUnderway());
     }
 
-    _server.gui().pic(pos.x, pos.y, level, participants);
+    _server.gui().pic(pos.x(), pos.y(), level, participants);
 
     TimePoint due = deadlineFor(300, _server.freq());
     _server.scheduler().schedule(due, [this, playerId, pos, level, participants]() {
@@ -457,16 +457,16 @@ void CommandExecutor::finishIncantation(int issuerId, Pos pos, int level,
 {
     (void)issuerId;
     GameState &st = _server.state();
-    Tile &tile = st.world().at(pos.x, pos.y);
+    Tile &tile = st.world().at(pos.x(), pos.y());
 
     std::vector<int> present;
     for (int pid : participants) {
         if (!st.hasPlayer(pid))
             continue;
         const Player &p = st.player(pid);
-        if (p.state != Player::State::Incanting)
+        if (p.state() != Player::State::Incanting)
             continue;
-        if (p.level != level || p.pos.x != pos.x || p.pos.y != pos.y)
+        if (p.level() != level || p.pos().x() != pos.x() || p.pos().y() != pos.y())
             continue;
         present.push_back(pid);
     }
@@ -476,23 +476,23 @@ void CommandExecutor::finishIncantation(int issuerId, Pos pos, int level,
     if (ok) {
         const ElevationReq &req = ELEV[level];
         for (int r = 1; r < RESOURCE_COUNT; ++r)
-            tile.resources[r] -= req.stones[r];
+            tile.resources()[r] -= req.stones[r];
         for (int pid : present) {
             Player &p = st.player(pid);
-            p.level = level + 1;
-            _server.sendToPlayer(pid, AiProtocol::currentLevel(p.level));
+            p.setLevel(level + 1);
+            _server.sendToPlayer(pid, AiProtocol::currentLevel(p.level()));
             _server.gui().plv(p);
         }
-        _server.gui().bct(pos.x, pos.y, tile);
+        _server.gui().bct(pos.x(), pos.y(), tile);
     } else {
         for (int pid : present)
             _server.sendToPlayer(pid, AiProtocol::ko());
     }
 
-    _server.gui().pie(pos.x, pos.y, ok);
+    _server.gui().pie(pos.x(), pos.y(), ok);
 
     for (int pid : present)
-        st.player(pid).state = Player::State::Idle;
+        st.player(pid).setState(Player::State::Idle);
     pumpPlayerQueues();
 }
 

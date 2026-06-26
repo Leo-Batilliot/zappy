@@ -13,7 +13,20 @@ enum class Orientation { North = 1, East = 2, South = 3, West = 4 };
 
 using Inventory = std::array<int, RESOURCE_COUNT>;
 
-struct Pos { int x; int y; };
+class Pos {
+public:
+    Pos() = default;
+    Pos(int x, int y) : _x(x), _y(y) {}
+
+    int x() const { return _x; }
+    int y() const { return _y; }
+    void setX(int x) { _x = x; }
+    void setY(int y) { _y = y; }
+
+private:
+    int _x = 0;
+    int _y = 0;
+};
 
 inline const char *resourceName(int idx)
 {

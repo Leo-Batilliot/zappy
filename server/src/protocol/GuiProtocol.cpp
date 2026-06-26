@@ -4,32 +4,32 @@ namespace {
 
 std::string fmtPnw(const Player &p)
 {
-    return "pnw #" + std::to_string(p.id) + " "
-         + std::to_string(p.pos.x) + " " + std::to_string(p.pos.y) + " "
-         + std::to_string(static_cast<int>(p.orient)) + " "
-         + std::to_string(p.level) + " " + p.teamName + "\n";
+    return "pnw #" + std::to_string(p.id()) + " "
+         + std::to_string(p.pos().x()) + " " + std::to_string(p.pos().y()) + " "
+         + std::to_string(static_cast<int>(p.orient())) + " "
+         + std::to_string(p.level()) + " " + p.teamName() + "\n";
 }
 
 std::string fmtPin(const Player &p)
 {
-    std::string out = "pin #" + std::to_string(p.id) + " "
-                    + std::to_string(p.pos.x) + " " + std::to_string(p.pos.y);
+    std::string out = "pin #" + std::to_string(p.id()) + " "
+                    + std::to_string(p.pos().x()) + " " + std::to_string(p.pos().y());
     for (int i = 0; i < RESOURCE_COUNT; ++i)
-        out += " " + std::to_string(p.inventory[i]);
+        out += " " + std::to_string(p.inventory()[i]);
     out += "\n";
     return out;
 }
 
 std::string fmtPlv(const Player &p)
 {
-    return "plv #" + std::to_string(p.id) + " " + std::to_string(p.level) + "\n";
+    return "plv #" + std::to_string(p.id()) + " " + std::to_string(p.level()) + "\n";
 }
 
 std::string fmtPpo(const Player &p)
 {
-    return "ppo #" + std::to_string(p.id) + " "
-         + std::to_string(p.pos.x) + " " + std::to_string(p.pos.y) + " "
-         + std::to_string(static_cast<int>(p.orient)) + "\n";
+    return "ppo #" + std::to_string(p.id()) + " "
+         + std::to_string(p.pos().x()) + " " + std::to_string(p.pos().y()) + " "
+         + std::to_string(static_cast<int>(p.orient())) + "\n";
 }
 
 std::string fmtEnw(int eggId, int playerId, int x, int y)
@@ -56,7 +56,7 @@ std::string GuiProtocol::tileResources(const Tile &t)
     for (int i = 0; i < RESOURCE_COUNT; ++i) {
         if (i)
             out += " ";
-        out += std::to_string(t.resources[i]);
+        out += std::to_string(t.resources()[i]);
     }
     return out;
 }
@@ -78,7 +78,7 @@ void GuiProtocol::sendInitialState(Client &gui, const GameState &state, int freq
     sgt(gui, freq);
     for (const auto &[name, team] : state.teams()) {
         (void)name;
-        tna(gui, team.name);
+        tna(gui, team.name());
     }
     bctAll(gui, w);
     for (const auto &[id, p] : state.players()) {
@@ -89,7 +89,7 @@ void GuiProtocol::sendInitialState(Client &gui, const GameState &state, int freq
     }
     for (const auto &[id, e] : state.eggs()) {
         (void)id;
-        gui.queueWrite(fmtEnw(e.id, e.layerId, e.pos.x, e.pos.y));
+        gui.queueWrite(fmtEnw(e.id(), e.layerId(), e.pos().x(), e.pos().y()));
     }
 }
 

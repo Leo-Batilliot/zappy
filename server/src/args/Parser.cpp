@@ -9,12 +9,18 @@ void Parser::printUsage()
 {
     std::cout
         << "USAGE: ./zappy_server -p port -x width -y height -n name1 name2 ... -c clientsNb -f freq\n"
-        << "\t-p port\t\tport number\n"
-        << "\t-x width\tworld width\n"
-        << "\t-y height\tworld height\n"
-        << "\t-n name1 ...\tteam names\n"
-        << "\t-c clientsNb\tnumber of clients per team\n"
-        << "\t-f freq\t\treciprocal of time unit (default 100)\n";
+        << "\t-p port\t\tport number (" << PORT_MIN << ".." << PORT_MAX
+        << ", default " << DEFAULT_PORT << ")\n"
+        << "\t-x width\tworld width (" << DIMENSION_MIN << ".." << DIMENSION_MAX
+        << ", default " << DEFAULT_WIDTH << ")\n"
+        << "\t-y height\tworld height (" << DIMENSION_MIN << ".." << DIMENSION_MAX
+        << ", default " << DEFAULT_HEIGHT << ")\n"
+        << "\t-n name1 ...\tteam names (1.." << TEAMS_MAX
+        << " teams, default " << DEFAULT_TEAM << ")\n"
+        << "\t-c clientsNb\tnumber of clients per team (" << CLIENTS_MIN << ".."
+        << CLIENTS_MAX << ", default " << DEFAULT_CLIENTS << ")\n"
+        << "\t-f freq\t\treciprocal of time unit (" << FREQ_MIN << ".." << FREQ_MAX
+        << ", default " << DEFAULT_FREQ << ")\n";
 }
 
 int Parser::parseInt(const std::string &value, const std::string &flag)
@@ -29,20 +35,25 @@ int Parser::parseInt(const std::string &value, const std::string &flag)
     return result;
 }
 
+static void checkRange(int value, int min, int max, const std::string &name)
+{
+    if (value < min || value > max)
+        throw ArgError(name + " must be in range " + std::to_string(min)
+            + ".." + std::to_string(max) + " (got " + std::to_string(value) + ")");
+}
+
 void Parser::validate(const Config &cfg)
 {
-    if (cfg.port < 1 || cfg.port > 65535)
-        throw ArgError("port must be in range 1..65535");
-    if (cfg.width <= 0)
-        throw ArgError("width must be > 0");
-    if (cfg.height <= 0)
-        throw ArgError("height must be > 0");
-    if (cfg.clients <= 0)
-        throw ArgError("clientsNb must be > 0");
-    if (cfg.freq <= 0)
-        throw ArgError("freq must be > 0");
-    if (cfg.teams.empty())
-        throw ArgError("at least one team is required");
+    checkRange(cfg.port, PORT_MIN, PORT_MAX, "port");
+    checkRange(cfg.width, DIMENSION_MIN, DIMENSION_MAX, "width");
+    checkRange(cfg.height, DIMENSION_MIN, DIMENSION_MAX, "height");
+    checkRange(cfg.clients, CLIENTS_MIN, CLIENTS_MAX, "clientsNb");
+    checkRange(cfg.freq, FREQ_MIN, FREQ_MAX, "freq");
+
+    if (cfg.teams.size() < TEAMS_MIN || cfg.teams.size() > TEAMS_MAX)
+        throw ArgError("number of teams must be in range "
+            + std::to_string(TEAMS_MIN) + ".." + std::to_string(TEAMS_MAX)
+            + " (got " + std::to_string(cfg.teams.size()) + ")");
 
     std::unordered_set<std::string> unique;
     for (const std::string &team : cfg.teams) {
@@ -63,7 +74,6 @@ Config Parser::parse(int argc, char **argv)
         {"-c", &cfg.clients},
         {"-f", &cfg.freq},
     };
-    std::unordered_set<std::string> seen;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -78,21 +88,10 @@ Config Parser::parse(int argc, char **argv)
         } else {
             throw ArgError("unknown argument: " + arg);
         }
-        seen.insert(arg);
     }
 
-    const std::unordered_map<std::string, std::string> descriptions = {
-        {"-p", "port number"},
-        {"-x", "world width"},
-        {"-y", "world height"},
-        {"-n", "team names"},
-        {"-c", "number of clients per team"},
-    };
-
-    for (const auto &flag : {"-p", "-x", "-y", "-n", "-c"})
-        if (seen.find(flag) == seen.end())
-            throw ArgError("missing required argument: " + std::string(flag)
-                + " (" + descriptions.at(flag) + ")");
+    if (cfg.teams.empty())
+        cfg.teams.push_back(DEFAULT_TEAM);
 
     validate(cfg);
     return cfg;

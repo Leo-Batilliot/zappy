@@ -32,7 +32,7 @@ struct AiProtocol {
             out += " ";
             out += resourceName(i);
             out += " ";
-            out += std::to_string(p.inventory[i]);
+            out += std::to_string(p.inventory()[i]);
         }
         out += " ]\n";
         return out;
