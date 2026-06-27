@@ -31,6 +31,15 @@ INCANT_RETRY_COOLDOWN = 6     # cycles d'attente après une incantation ratée
 MAX_FORKS = 6                 # pontes max par palier
 FORK_COOLDOWN = 18            # cycles mini entre deux pontes d'un même bot
 STALL_FORK_DELAY = 22         # cycles bloqué au même niveau avant de forker pour débloquer
+# On pilote le fork sur la population TOTALE de l'équipe (tous niveaux), pas par
+# niveau : forker sort un bébé niveau 1 qui ne comble pas un déficit de haut niveau,
+# il ne sert qu'à alimenter le pipeline. On vise POP_TARGET bots puis on ARRÊTE de
+# pondre (6 requis au sommet + marge de retardataires/pertes), d'où bien moins de
+# pontes gâchées (œufs non occupés, temps de Fork volé à la collecte).
+POP_TARGET = 8           # population totale visée (6 requis au sommet + marge backfill ;
+                         # la population réelle dépasse de 2-4 par overshoot de fork)
+DEADLOCK_POP_CAP = 12    # plafond autorisé pour casser un VRAI deadlock (= TEAM_TARGET launcher)
+HARD_DEADLOCK_DELAY = 50  # cycles bloqué à mon niveau avant de considérer un deadlock
 
 TEAM_MAX = 6                  # effectif visé (max requis aux paliers 6->7 et 7->8)
 ELECTION_GRACE = 12           # cycles avant qu'un candidat puisse se figer en leader
@@ -76,7 +85,9 @@ class Strategy:
         self.deposited = False
         self.committed = False
         self.silence = 0
-        self.peer_seen: dict[int, int] = {}
+        self.peer_seen: dict[int, int] = {}        # pairs de MON niveau (élection/homing)
+        self.roster_seen: dict[int, int] = {}      # rang -> dernier cycle entendu (tous niveaux)
+        self.roster_levels: dict[int, int] = {}    # rang -> son niveau (pour détecter le deadlock)
         self.incant_cooldown = 0
         self.total_forks = 0
         self.last_fork_cycle = -FORK_COOLDOWN
@@ -92,11 +103,35 @@ class Strategy:
         return self.leader_idx == self.idx
 
     def team_size(self) -> int:
-        """Effectif vivant estimé : coéquipiers entendus récemment (P) + soi.
-        Fenêtré pour qu'un bot mort cesse d'être compté -> le lockstep s'adapte."""
+        """Effectif vivant estimé de MON niveau : coéquipiers entendus récemment (P)
+        + soi. Fenêtré pour qu'un bot mort cesse d'être compté -> le lockstep s'adapte."""
         alive = sum(1 for c in self.peer_seen.values()
                     if self.cycle - c <= PEER_WINDOW)
         return min(TEAM_MAX, alive + 1)
+
+    def total_team_size(self) -> int:
+        """Population TOTALE estimée de l'équipe (tous niveaux confondus) + soi.
+        Base de pilotage du fork : on peuple jusqu'à POP_TARGET puis on arrête."""
+        alive = sum(1 for c in self.roster_seen.values()
+                    if self.cycle - c <= PEER_WINDOW)
+        return alive + 1
+
+    def _lower_level_peers(self) -> int:
+        """Nb de coéquipiers vivants à un niveau STRICTEMENT inférieur au mien : ce
+        sont les seuls qui peuvent remonter me rejoindre (backfill du pipeline)."""
+        return sum(1 for r, c in self.roster_seen.items()
+                   if self.cycle - c <= PEER_WINDOW
+                   and self.roster_levels.get(r, 1) < self.level)
+
+    def is_deadlocked(self) -> bool:
+        """VRAI deadlock (distinct du stall transitoire de la montée) : mon niveau
+        manque d'effectif depuis longtemps ET personne n'est en dessous pour remonter
+        me rejoindre. Dans ce cas, forker des bébés est le seul moyen de débloquer."""
+        return (self.level < MAX_LEVEL
+                and self.needed_players() > 1
+                and self.team_size() < self.needed_players()
+                and self.level_age >= HARD_DEADLOCK_DELAY
+                and self._lower_level_peers() == 0)
 
     # --------------------------------------------- collecte distribuée par rang
     def _participants_sorted(self) -> list[int]:
@@ -143,9 +178,13 @@ class Strategy:
         """Message à diffuser ce cycle. Le leader figé balise sa phase (Z forage /
         G assemblée) ; tout le monde ping P (présence + élection).
         Le nom d'équipe est inclus pour éviter que les bots adverses convergent."""
-        if self.level >= MAX_LEVEL or self.needed_players() == 1:
+        if self.level >= MAX_LEVEL:
             return None
-        if self.is_leader() and self.state in (ActionState.LEAD, ActionState.INCANT):
+        # Z/G (rendez-vous) seulement aux paliers à plusieurs ; le niveau 1 (solo)
+        # diffuse uniquement un P de PRÉSENCE -> il compte dans le roster global, donc
+        # le pilotage du fork voit les bébés et n'en sur-produit plus.
+        if (self.needed_players() > 1 and self.is_leader()
+                and self.state in (ActionState.LEAD, ActionState.INCANT)):
             tag = TAG_GATHER if self.tile_ready else TAG_FORAGE
             return f"{tag}:{self.team_name}:{self.level}:{self.idx}"
         return f"{TAG_PING}:{self.team_name}:{self.level}:{self.idx}"
@@ -236,7 +275,13 @@ class Strategy:
             lvl, rank = int(lvl_s), int(rank_s)
         except ValueError:
             return
-        if lvl != self.level or rank == self.idx:
+        if rank == self.idx:
+            return
+        # Roster GLOBAL (tous niveaux) : sert à estimer la population totale de
+        # l'équipe pour piloter le fork. On l'enregistre AVANT le filtre de niveau.
+        self.roster_seen[rank] = self.cycle
+        self.roster_levels[rank] = lvl
+        if lvl != self.level:
             return
 
         if tag == TAG_PING:
@@ -287,7 +332,12 @@ class Strategy:
             return False
         if self.needed_players() == 1:
             return False
-        if self.team_size() >= self.needed_players():
+        # Cap dur à POP_TARGET en régime normal ; mais si MON niveau est en VRAI
+        # deadlock (bloqué longtemps, personne en dessous pour me rejoindre), on
+        # autorise à dépasser jusqu'à DEADLOCK_POP_CAP : forker des bébés est alors le
+        # seul moyen de reboucher le pipeline et de débloquer le palier.
+        cap = DEADLOCK_POP_CAP if self.is_deadlocked() else POP_TARGET
+        if self.total_team_size() >= cap:
             return False
         if self.cycle - self.last_fork_cycle < FORK_COOLDOWN:
             return False
