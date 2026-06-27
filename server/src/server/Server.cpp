@@ -124,6 +124,21 @@ void Server::run()
             syncPollOut(client);
         }
     }
+
+    flushAllPending();
+}
+
+void Server::flushAllPending()
+{
+    for (auto &[fd, client] : _clients) {
+        while (client.hasPendingWrites()) {
+            const std::string &data = client.writeBuffer();
+            ssize_t sent = send(fd, data.data(), data.size(), MSG_NOSIGNAL);
+            if (sent <= 0)
+                break;
+            client.consumeWritten(static_cast<std::size_t>(sent));
+        }
+    }
 }
 
 int Server::computePollTimeout()

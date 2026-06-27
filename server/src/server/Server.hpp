@@ -38,6 +38,7 @@ private:
     void handleGuiLine(Client &client, const std::string &line);
     void doHandshake(Client &client, const std::string &teamName);
     void flushWrites(Client &client);
+    void flushAllPending();
     void syncPollOut(const Client &client);
 
     int computePollTimeout();

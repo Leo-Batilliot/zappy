@@ -161,6 +161,21 @@ Ordre choisi délibérément : on **lit/accepte d'abord**, on **fait avancer le
 temps ensuite**, puis on **planifie les écritures**. Cela garantit que les
 réponses produites par les événements de ce tour sont envoyées au tour suivant.
 
+8. **`flushAllPending()`** (après la boucle) : à la sortie de boucle, vidange
+   **synchrone** des tampons d'écriture de tous les clients.
+
+> **Pourquoi `flushAllPending` est nécessaire.** Les écritures sont
+> bufferisées (`queueWrite`) et ne partent normalement qu'au tour suivant via
+> `flushWrites` (sur `POLLOUT`). Or quand le dernier `incantation` fait
+> atteindre le niveau 8 au 6ᵉ joueur, dans **le même tour** : `finishIncantation`
+> met en file `current level 8` (IA) + `plv`/`pie` (GUI), puis `checkVictory`
+> passe `finished = true` et met en file `seg`. La condition `while
+> (!_state.finished)` devient fausse : **la boucle sort avant le tour suivant**,
+> donc avant tout `flushWrites`. Sans vidange finale, ces messages (dont la
+> notification de fin de partie `seg`) restent dans les tampons et sont perdus à
+> la destruction (`~Server` ne fait que `close`). `flushAllPending` garantit leur
+> envoi avant fermeture des sockets.
+
 ---
 
 ## 5. Module temps — `src/time`
@@ -497,13 +512,19 @@ cases modifiées (`bct`) puis **se replanifie**. Démarré au début de `run()`.
 
 Pour chaque équipe, compte les joueurs vivants de **niveau ≥ 8**. Si une équipe
 en a **≥ 6**, la partie est gagnée : `finished = true`, `winner = name`,
-notification GUI `seg`. La boucle principale s'arrête au tour suivant.
+notification GUI `seg`. La boucle principale s'arrête au tour suivant — mais les
+messages bufferisés de ce tour final (dont `seg`) sont vidangés par
+`flushAllPending` à la sortie de boucle (voir §4).
 
-#### Écritures non bloquantes — `flushWrites` / `syncPollOut`
+#### Écritures non bloquantes — `flushWrites` / `flushAllPending` / `syncPollOut`
 
 - **`flushWrites(client)`** : `send(MSG_NOSIGNAL)` du tampon. `EAGAIN`/
   `EWOULDBLOCK` → on réessaiera (socket plein) ; autre erreur → `removeClient`.
   Les octets envoyés sont retirés du tampon (`consumeWritten`).
+- **`flushAllPending()`** : appelée **une seule fois à la sortie de `run()`**.
+  Vidange synchrone des tampons de tous les clients pour garantir l'envoi des
+  derniers messages (notamment `seg`) avant la fermeture des sockets. Voir
+  l'encadré du §4 pour le détail du problème évité.
 - **`syncPollOut(client)`** : active `POLLOUT` dans `_pollFds` si le client a
   des écritures en attente, le désactive sinon. Évite de réveiller `poll`
   inutilement quand il n'y a rien à écrire.
