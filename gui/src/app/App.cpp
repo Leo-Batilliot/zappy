@@ -8,6 +8,7 @@
 #include "app/App.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 
@@ -25,6 +26,12 @@ int App::run()
 {
     if (!_ready)
         return 84;
+    if (!std::getenv("DISPLAY") && !std::getenv("WAYLAND_DISPLAY")) {
+        std::cerr << "Pas d'affichage graphique disponible "
+                     "(DISPLAY non defini) : le GUI ne peut pas demarrer."
+                  << std::endl;
+        return 84;
+    }
     Renderer renderer;
     while (renderer.isOpen()) {
         pumpNetwork();
