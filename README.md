@@ -12,6 +12,7 @@ Le projet est composé de trois exécutables indépendants qui communiquent via 
 | `zappy_server` | C++20 | Héberge la partie, la carte, les ressources et arbitre les règles. |
 | `zappy_gui` | C++17 / SFML | Visualise la partie en temps réel (clients « GRAPHIC »). |
 | `zappy_ai` | Python 3 | Robot autonome qui joue pour une équipe. |
+| `zappy_team` | Python 3 | Lance et supervise automatiquement une cohorte de `zappy_ai` pour une équipe. |
 
 ```
         ┌────────────┐         TCP          ┌──────────────┐
@@ -90,7 +91,7 @@ la racine du dépôt :
 make            # compile zappy_server, zappy_gui et zappy_ai
 make server     # compile uniquement le serveur  → ./zappy_server
 make gui        # compile uniquement la GUI       → ./zappy_gui
-make ai         # génère le lanceur de l'IA       → ./zappy_ai
+make ai         # génère le lanceur de l'IA       → ./zappy_ai ./zappy_team
 make clean      # supprime les fichiers objets
 make fclean     # supprime objets + binaires
 make re         # fclean puis all
@@ -99,10 +100,10 @@ make re         # fclean puis all
 Après `make`, vous disposez à la racine de :
 
 ```
-./zappy_server   ./zappy_gui   ./zappy_ai
+./zappy_server   ./zappy_gui   ./zappy_ai   ./zappy_team
 ```
 
-> `zappy_ai` est un petit script shell qui lance `python3 ai/src/main.py` : il
+> `zappy_ai` et `zappy_team` sont des petits scripts shell qui lance `python3 ai/src/main.py` et `python3 ai/src/launcher.py`: il
 > n'y a pas de réelle « compilation » de l'IA.
 
 ---
@@ -118,12 +119,17 @@ Ouvrez **trois terminaux** (ou utilisez `&` pour lancer en arrière-plan).
 # 2) La visualisation (se connecte comme client graphique)
 ./zappy_gui -p 4242 -h 127.0.0.1
 
-# 3) Un (ou plusieurs) robot(s) pour l'équipe "red"
+# 3) Un robot pour l'équipe "red"
 ./zappy_ai -p 4242 -n red -h 127.0.0.1
 ```
 
 Lancez autant de `zappy_ai` que de slots disponibles par équipe (`-c`). Pour une
 vraie partie, lancez aussi des IA pour les autres équipes (`-n blue`).
+
+> Pour ne pas lancer chaque bot à la main, `./zappy_team -p 4242 -n red`
+> fait le travail à votre place : il démarre un premier bot puis en relance un
+> nouveau automatiquement à chaque `Fork` réussi, jusqu'à occuper tous les
+> slots de l'équipe.
 
 ---
 
@@ -182,6 +188,31 @@ en temps réel.
 
 Chaque instance occupe **un slot** de l'équipe. Quand un slot est libre (œuf
 disponible), une nouvelle IA peut se connecter ; sinon la connexion est refusée.
+
+### IA (team) — `zappy_team`
+
+```
+./zappy_team -p port -n name [-h machine]
+```
+
+| Flag | Description | Défaut |
+|------|-------------|:------:|
+| `-p` | Port du serveur | — |
+| `-n` | Nom de l'équipe à rejoindre | — |
+| `-h` | Adresse du serveur | `localhost` |
+| `--help` | Affiche l'aide | — |
+
+`zappy_team` automatise le lancement de plusieurs `zappy_ai` pour une même
+équipe, plutôt que de devoir ouvrir un terminal par bot :
+
+- Au démarrage, il lance un premier bot et surveille sa sortie standard.
+- Dès qu'un bot réalise un `Fork` réussi (signal interne `##FORK##`), le
+  launcher spawn automatiquement un nouveau bot pour venir occuper l'œuf
+  pondu, jusqu'à occuper tous les slots de l'équipe.
+- La sortie de chaque bot enfant est relayée telle quelle sur la sortie
+  standard du launcher.
+- Le launcher s'arrête automatiquement une fois que tous les bots qu'il a
+  lancés se sont terminés.
 
 ---
 
