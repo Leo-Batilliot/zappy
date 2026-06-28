@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -190,14 +191,14 @@ void Renderer::drawPanel(const World &world)
         sf::Color kDesc(180, 180, 195);
         float xr = x + PANEL_WIDTH - 28.f;
 
-        std::vector<std::pair<int, const Player *>> ranked;
+        std::vector<std::pair<int, std::reference_wrapper<const Player>>> ranked;
         for (const auto &[id, p] : world.players()) {
             if (_rankLevelFilter < 0 || p.level == _rankLevelFilter)
-                ranked.emplace_back(id, &p);
+                ranked.emplace_back(id, std::cref(p));
         }
         std::stable_sort(ranked.begin(), ranked.end(),
             [](const auto &a, const auto &b) {
-                return a.second->level > b.second->level;
+                return a.second.get().level > b.second.get().level;
             });
 
         int total = static_cast<int>(ranked.size());
@@ -226,23 +227,24 @@ void Renderer::drawPanel(const World &world)
             y += 15.f;
         } else {
             for (int i = _rankOffset; i < std::min(_rankOffset + 10, total); ++i) {
-                auto [id, pptr] = ranked[static_cast<std::size_t>(i)];
+                auto [id, pref] = ranked[static_cast<std::size_t>(i)];
+                const Player &p = pref;
                 int entryIdx = i - _rankOffset;
                 _btnRankEntry[entryIdx] = {x, y, x + PANEL_WIDTH - 28.f, y + 15.f};
                 _rankEntryId[entryIdx] = id;
-                _rankEntryX[entryIdx] = pptr->x;
-                _rankEntryY[entryIdx] = pptr->y;
+                _rankEntryX[entryIdx] = p.x;
+                _rankEntryY[entryIdx] = p.y;
                 _rankEntryCount++;
                 if (id == _selectedPlayer) {
                     rowHL.setPosition(x, y);
                     _window.draw(rowHL);
                 }
-                sf::Color tc = teamColor(world, pptr->team);
+                sf::Color tc = teamColor(world, p.team);
                 swatch.setPosition(x, y + 3.f);
                 swatch.setFillColor(tc);
                 _window.draw(swatch);
                 std::string entry = std::to_string(i + 1) + ".  #"
-                    + std::to_string(id) + "   niv " + std::to_string(pptr->level);
+                    + std::to_string(id) + "   niv " + std::to_string(p.level);
                 drawText(entry, x + 14.f, y, 12, tc);
                 y += 15.f;
             }
