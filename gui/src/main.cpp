@@ -7,9 +7,10 @@
 
 #include <iostream>
 #include <string>
+#include <string_view>
 #include "app/App.hpp"
 
-static void print_usage(const char *bin)
+static void print_usage(std::string_view bin)
 {
     std::cerr << "USAGE: " << bin << " -p port -h machine\n";
 }
