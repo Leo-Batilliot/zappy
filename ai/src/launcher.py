@@ -25,15 +25,18 @@ _T0 = time.monotonic()
 
 def main() -> int:
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("-p", type=int, required=True)
-    parser.add_argument("-n", type=str, required=True)
+    parser.add_argument("-p", type=int)
+    parser.add_argument("-n", type=str)
     parser.add_argument("-h", type=str, default="localhost")
-    parser.add_argument("-help", action="store_true")
+    parser.add_argument("--help", action="store_true")
     args, _ = parser.parse_known_args()
 
-    if args.help:
-        print(f"USAGE: {sys.argv[0]} -p port -n name [-h machine]")
-        return 0
+    if args.help or args.p is None or args.n is None:
+        print("""USAGE: ./zappy_team -p port -n name [-h machine]
+        -p port      port number
+        -n name      name of the team
+        -h machine   hostname of the server (localhost by default)""")
+        return 0 if args.help else 84
 
     ai_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "zappy_ai"
@@ -59,7 +62,7 @@ def main() -> int:
             idx = next_index[0]
             next_index[0] += 1
             bot_cmd = [ai_path, "-p", str(args.p), "-n", args.n, "-h", args.h]
-            child_env = dict(os.environ, PYTHONUNBUFFERED="1")  # logs non bufferisés
+            child_env = dict(os.environ, PYTHONUNBUFFERED="1")
             try:
                 proc = subprocess.Popen(
                     bot_cmd,

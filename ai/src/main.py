@@ -12,7 +12,11 @@ def main() -> int:
     args, _ = parser.parse_known_args()
 
     if args.help or args.p is None or args.n is None:
-        print(f"USAGE: {sys.argv[0]} -p port -n name -h machine")
+        print(
+            """USAGE: ./zappy_ai -p port -n name [-h machine]
+        -p port      port number
+        -n name      name of the team
+        -h machine   hostname of the server (localhost by default)""")
         return 0 if args.help else 84
 
     bot = ZappyBot(host=args.h, port=args.p, team_name=args.n)

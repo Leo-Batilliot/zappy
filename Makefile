@@ -34,7 +34,7 @@ ai:
 	@$(SUBMAKE) -C $(AI_DIR)
 	@mv -f $(AI_DIR)/$(AI) ./$(AI)
 	@chmod +x ./$(AI)
-	@cp -f $(AI_DIR)/$(TEAM) ./$(TEAM)
+	@mv -f $(AI_DIR)/$(TEAM) ./$(TEAM)
 	@chmod +x ./$(TEAM)
 
 clean:
