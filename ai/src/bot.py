@@ -191,28 +191,8 @@ class ZappyBot:
             else:
                 self._queue_command("Forward")
         else:
-            if tiles[0].count('player') >= 2:
-                pass
-            else:
-                crowd = self._find_crowd(tiles)
-                if crowd is not None:
-                    for move in pathfinding.moves_to_tile(crowd):
-                        self._queue_command(move)
-                else:
-                    self._queue_command("Forward")
+            self._queue_command("Forward")
         self._queue_command("Inventory")
-
-    def _find_crowd(self, tiles):
-        """Index de la tuile visible (hors la sienne) rassemblant le PLUS de joueurs
-        (>= 2 = attroupement, potentiel rituel). None si aucun attroupement."""
-        best_idx, best_n = None, 1
-        for i, tile in enumerate(tiles):
-            if i == 0:
-                continue
-            n = tile.count('player')
-            if n > best_n:
-                best_n, best_idx = n, i
-        return best_idx
 
     def _drop_full_set(self):
         """Pose toutes les pierres de l'inventaire sur la case (mise en commun)."""
