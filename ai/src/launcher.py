@@ -95,6 +95,9 @@ def main() -> int:
     try:
         while True:
             time.sleep(1)
+            if next_index[0] > 0 and live_count() == 0:
+                print("[LAUNCHER] Tous les bots sont terminés. Arrêt.")
+                break
     except KeyboardInterrupt:
         print("\n[LAUNCHER] Arrêt.")
 
