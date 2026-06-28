@@ -4,7 +4,6 @@ from dataclasses import dataclass
 RESOURCES = ['food', 'linemate', 'deraumere', 'sibur', 'mendiane', 'phiras', 'thystame']
 STONES = RESOURCES[1:]
 
-# (nb_players, linemate, deraumere, sibur, mendiane, phiras, thystame)
 ELEVATION_REQUIREMENTS: dict[int, tuple[int, ...]] = {
     1: (1, 1, 0, 0, 0, 0, 0),
     2: (2, 1, 1, 1, 0, 0, 0),
@@ -26,13 +25,13 @@ STONE_QUOTA: dict[str, int] = {
 
 class ActionState(Enum):
     """États de la machine à états (FSM) du bot."""
-    SURVIVE = auto()      # food critique : ne fait que chercher à manger
-    COLLECT = auto()      # rassemble le set de pierres du niveau courant
-    LEAD = auto()         # je suis le point de rendez-vous : immobile, je compte
-    FOLLOW = auto()       # je converge vers le leader (homing sur beacon)
-    WAIT_TILE = auto()    # arrivé sur la case du leader : pierres déposées, j'attends
-    INCANT = auto()       # le leader a lancé l'incantation, attente du résultat
-    DONE = auto()         # niveau max atteint
+    SURVIVE = auto()
+    COLLECT = auto()
+    LEAD = auto()
+    FOLLOW = auto()
+    WAIT_TILE = auto()
+    INCANT = auto()
+    DONE = auto()
 
 
 @dataclass

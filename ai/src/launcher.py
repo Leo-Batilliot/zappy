@@ -16,10 +16,10 @@ import time
 import os
 
 FORK_SIGNAL = "##FORK##"
-INITIAL_BOTS = 1  # on démarre SEUL : l'équipe se peuple ensuite par fork
-TEAM_TARGET = 12  # plafond dur de bots vivants (marge pour absorber les pertes)
+INITIAL_BOTS = 1
+TEAM_TARGET = 12
 
-_TS = bool(os.environ.get("ZAPPY_TS"))  # horodatage relatif des logs si défini
+_TS = bool(os.environ.get("ZAPPY_TS"))
 _T0 = time.monotonic()
 
 

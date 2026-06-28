@@ -32,9 +32,6 @@ class ZappyBot:
         self.strategy = Strategy(team_name)
         self.last_players_on_tile = 1
         self.bcast_tick = 0
-        # Vrai quand une incantation d'AUTRUI nous a figés (participant) : le serveur a
-        # alors annulé notre commande en vol sans réponse -> on se resynchronise au
-        # résultat du rituel, sinon pending_commands reste bloqué (deadlock + famine).
         self.awaiting_incant_result = False
 
     # --------------------------------------------------------------- cycle de vie
@@ -77,9 +74,6 @@ class ZappyBot:
             now = time.time()
             if lines:
                 last_activity = now
-            # Watchdog : aucune activité serveur depuis trop longtemps SANS incantation
-            # légitime (la nôtre, ou celle qui nous fige) = blocage. On se resynchronise
-            # au lieu de rester immobile jusqu'à la famine.
             elif (not self.awaiting_incant_result
                   and "incantation" not in self.sent_commands
                   and now - last_activity > watchdog):
@@ -154,9 +148,6 @@ class ZappyBot:
             return
 
         if state == ActionState.FOLLOW:
-            # Converger en priorité ; on ramasse la food sous les pieds (gratuit) mais
-            # on ne DÉVIE chercher à manger qu'en famine critique, sinon on ne rejoint
-            # jamais le leader (la faim modérée stoppait la convergence).
             self._grab_underfoot(tiles[0])
             if self.inventory.food <= FOOD_PANIC:
                 fidx = pathfinding.find_nearest(tiles, 'food')
@@ -174,17 +165,10 @@ class ZappyBot:
             return
 
         if state == ActionState.WAIT_TILE:
-            # Déposer ce que je porte (ma part, ou une pierre de rattrapage).
             self._drop_full_set()
-            # Gap-fill : tant que le set complet n'est pas au sol (phase Z), si la case
-            # manque une pierre requise et que je la vois, je vais la chercher — c'est ce
-            # qui comble les trous laissés par le split par rang (désaccord/mort). Une fois
-            # le set complet (phase G), plus personne ne bouge : la cohorte tient.
             if self.strategy.phase != "G":
                 if self._fetch_missing_for_tile(tiles):
                     return
-            # Rester sur la case : on ne quitte le rendez-vous QUE si famine critique,
-            # sinon on perd un corps de la cohorte juste avant l'incantation.
             if 'food' in tiles[0]:
                 self._queue_command("Take food")
             elif self.inventory.food <= FOOD_PANIC:
@@ -196,9 +180,6 @@ class ZappyBot:
             self._queue_command("Inventory")
             return
 
-        # COLLECT / SURVIVE — au passage, on ramasse toute pierre requise sous les pieds
-        # (même hors de sa part de rang) : décisif pour les pierres rares (thystame du
-        # palier 7->8) ; quiconque marche dessus la rapportera au rendez-vous.
         self._grab_underfoot(tiles[0])
         target = self.strategy.target_resource(self.inventory)
         if target:
@@ -283,9 +264,6 @@ class ZappyBot:
         """Route un message serveur : événement asynchrone ou réponse à une commande."""
         dbg(f"[IN]  <- {message}")
 
-        # On a été figés par l'incantation d'autrui : notre commande en vol a été
-        # ANNULÉE (aucune réponse). Le résultat du rituel est notre point de reprise :
-        # on purge le suivi des commandes et on repart sur un Inventory propre.
         if self.awaiting_incant_result and (
                 message.startswith("Current level") or message == "ko"):
             self.awaiting_incant_result = False
@@ -337,12 +315,9 @@ class ZappyBot:
 
         elif message == "Elevation underway":
             print("[IA] [FOLLOWER] Rituel amorcé sur ma case, j'attends.")
-            # Le serveur vient d'annuler notre commande en vol : on se resynchronisera
-            # au résultat (voir _handle_server_message).
             self.awaiting_incant_result = True
 
         elif message.startswith("Current level"):
-            # Fallback si 'Elevation underway' a été manqué : resync complète.
             self.awaiting_incant_result = False
             self.command_queue.clear()
             self.sent_commands.clear()
@@ -385,9 +360,6 @@ class ZappyBot:
     def _handle_inventory_response(self, message: str):
         self._update_inventory_from_string(message)
         self.strategy.update(self.inventory)
-        # On sonde Connect_nbr (puis fork si besoin) dans les états mobiles, MAIS aussi
-        # quand la progression est bloquée : un cohorte figée en LEAD/WAIT_TILE faute
-        # d'effectif (ex. 4@6/3@5/1@2) doit pouvoir PONDRE pour finir par débloquer.
         forkable = (self.strategy.state in (ActionState.COLLECT, ActionState.SURVIVE)
                     or self.strategy.is_progress_stalled())
         if forkable and self.strategy.cycle % 12 == 1:

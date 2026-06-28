@@ -5,39 +5,28 @@ from typing import Optional
 from state import (Inventory, ActionState, ELEVATION_REQUIREMENTS,
                    MAX_LEVEL, STONES)
 
-# --- Seuils de nourriture (1 food = 126 unités de temps = 6,3 s à f=20) --------
-# Un bot démarre avec 10 rations. Des seuils trop hauts le forçaient à hoarder la
-# nourriture en permanence au lieu de progresser -> montée très lente. On garde une
-# marge de survie sûre (8 rations ≈ 50 s à f=20) mais on privilégie la progression.
-FOOD_PANIC = 7         # plancher dur : même un bot en attente de rituel part manger ici
-FOOD_HUNGRY = 28       # au-dessus : on peut viser des pierres ; en dessous : manger
-FOOD_TARGET = 35       # cap de nourriture en mode solo (niveau 1)
-# GROS stock à constituer AVANT d'aller attendre un rituel : c'est ce qui permet de
-# RESTER sur la case sans repartir manger (la nourriture repop aussi sur place). Le
-# churn « quelqu'un repart manger pendant qu'un autre arrive » venait d'un stock trop
-# faible -> les bots arrivaient affamés et ne tenaient pas l'attente.
-FOOD_RESERVE = 42      # buffer visé en phase de regroupement (>= 2 joueurs)
-FOOD_GO = 32           # food mini pour QUITTER la collecte et rejoindre le rendez-vous
-LEADER_COMMIT_FOOD = 42  # le leader se fige bien nourri -> tient le point de rendez-vous
-FOOD_MIN_INCANT = 14   # solo : ne pas incanter si on frôle la famine
-# INVARIANT : FOOD_PANIC < FOOD_HUNGRY <= FOOD_TARGET <= FOOD_RESERVE (pas de zone morte).
+FOOD_PANIC = 7
+FOOD_HUNGRY = 28
+FOOD_TARGET = 35
+FOOD_RESERVE = 42
+FOOD_GO = 32
+LEADER_COMMIT_FOOD = 42
+FOOD_MIN_INCANT = 14
 
-LEADER_SILENCE_TIMEOUT = 30   # cycles sans Z/G du leader -> le croire mort
-INCANT_RETRY_COOLDOWN = 6     # cycles d'attente après une incantation ratée
-# Reproduction : on démarre à 1 bot/équipe et on PEUPLE par fork. Budget par PALIER
-# (réinitialisé à chaque montée), throttlé par un cooldown, pour bâtir une cohorte sans
-# inonder d'œufs. Forker produit des bébés niveau 1 qui alimentent le pipeline ; à terme
-# un niveau accumule assez de joueurs et débloque (l'incantation élève TOUS les présents).
-MAX_FORKS = 6                 # pontes max par palier
-FORK_COOLDOWN = 18            # cycles mini entre deux pontes d'un même bot
-STALL_FORK_DELAY = 22         # cycles bloqué au même niveau avant de forker pour débloquer
+LEADER_SILENCE_TIMEOUT = 30
+INCANT_RETRY_COOLDOWN = 6
+MAX_FORKS = 6
+FORK_COOLDOWN = 18
+STALL_FORK_DELAY = 22
+POP_TARGET = 8
 
-TEAM_MAX = 6                  # effectif visé (max requis aux paliers 6->7 et 7->8)
-ELECTION_GRACE = 12           # cycles avant qu'un candidat puisse se figer en leader
-PEER_WINDOW = 80              # fenêtre (cycles) pour compter un coéquipier vivant
+DEADLOCK_POP_CAP = 12
+HARD_DEADLOCK_DELAY = 50
 
-# Tags de balise, encodés SANS espace (le serveur rejette tout Broadcast
-# multi-token). P = présence/élection ; Z = phase forage ; G = phase assemblée.
+TEAM_MAX = 6
+ELECTION_GRACE = 12
+PEER_WINDOW = 80
+
 TAG_PING = "P"
 TAG_FORAGE = "Z"
 TAG_GATHER = "G"
@@ -65,8 +54,6 @@ class Strategy:
     def __init__(self, team_name: str):
         self.team_name = team_name
         self.idx = random.randint(1, 2_000_000_000)
-        # Hook de TEST uniquement : amorcer le niveau interne pour valider les paliers
-        # hauts sans la longue montée (à coupler avec /setLevel côté serveur).
         self.level = int(os.environ.get("ZAPPY_START_LEVEL", "1") or "1")
         self.leader_idx = self.idx
         self.state = ActionState.COLLECT
@@ -77,6 +64,8 @@ class Strategy:
         self.committed = False
         self.silence = 0
         self.peer_seen: dict[int, int] = {}
+        self.roster_seen: dict[int, int] = {}
+        self.roster_levels: dict[int, int] = {}
         self.incant_cooldown = 0
         self.total_forks = 0
         self.last_fork_cycle = -FORK_COOLDOWN
@@ -92,11 +81,35 @@ class Strategy:
         return self.leader_idx == self.idx
 
     def team_size(self) -> int:
-        """Effectif vivant estimé : coéquipiers entendus récemment (P) + soi.
-        Fenêtré pour qu'un bot mort cesse d'être compté -> le lockstep s'adapte."""
+        """Effectif vivant estimé de MON niveau : coéquipiers entendus récemment (P)
+        + soi. Fenêtré pour qu'un bot mort cesse d'être compté -> le lockstep s'adapte."""
         alive = sum(1 for c in self.peer_seen.values()
                     if self.cycle - c <= PEER_WINDOW)
         return min(TEAM_MAX, alive + 1)
+
+    def total_team_size(self) -> int:
+        """Population TOTALE estimée de l'équipe (tous niveaux confondus) + soi.
+        Base de pilotage du fork : on peuple jusqu'à POP_TARGET puis on arrête."""
+        alive = sum(1 for c in self.roster_seen.values()
+                    if self.cycle - c <= PEER_WINDOW)
+        return alive + 1
+
+    def _lower_level_peers(self) -> int:
+        """Nb de coéquipiers vivants à un niveau STRICTEMENT inférieur au mien : ce
+        sont les seuls qui peuvent remonter me rejoindre (backfill du pipeline)."""
+        return sum(1 for r, c in self.roster_seen.items()
+                   if self.cycle - c <= PEER_WINDOW
+                   and self.roster_levels.get(r, 1) < self.level)
+
+    def is_deadlocked(self) -> bool:
+        """VRAI deadlock (distinct du stall transitoire de la montée) : mon niveau
+        manque d'effectif depuis longtemps ET personne n'est en dessous pour remonter
+        me rejoindre. Dans ce cas, forker des bébés est le seul moyen de débloquer."""
+        return (self.level < MAX_LEVEL
+                and self.needed_players() > 1
+                and self.team_size() < self.needed_players()
+                and self.level_age >= HARD_DEADLOCK_DELAY
+                and self._lower_level_peers() == 0)
 
     # --------------------------------------------- collecte distribuée par rang
     def _participants_sorted(self) -> list[int]:
@@ -143,9 +156,10 @@ class Strategy:
         """Message à diffuser ce cycle. Le leader figé balise sa phase (Z forage /
         G assemblée) ; tout le monde ping P (présence + élection).
         Le nom d'équipe est inclus pour éviter que les bots adverses convergent."""
-        if self.level >= MAX_LEVEL or self.needed_players() == 1:
+        if self.level >= MAX_LEVEL:
             return None
-        if self.is_leader() and self.state in (ActionState.LEAD, ActionState.INCANT):
+        if (self.needed_players() > 1 and self.is_leader()
+                and self.state in (ActionState.LEAD, ActionState.INCANT)):
             tag = TAG_GATHER if self.tile_ready else TAG_FORAGE
             return f"{tag}:{self.team_name}:{self.level}:{self.idx}"
         return f"{TAG_PING}:{self.team_name}:{self.level}:{self.idx}"
@@ -185,7 +199,7 @@ class Strategy:
             self._update_follower(inventory)
 
     def _update_leader(self, inventory: Inventory) -> None:
-        """Le leader se fige TÔT (grâce d'élection + un minimum de food), SANS attendre
+        """Le leader se fige tôt (grâce d'élection + un minimum de food), sans attendre
         d'avoir tout le set : sinon, aux paliers hauts (7 pierres au niveau 6), il
         roamerait sans jamais baliser et personne ne convergerait. Une fois figé il
         reste en place (rendez-vous stable) et balise Z/G ; ce sont les suiveurs qui
@@ -215,10 +229,10 @@ class Strategy:
             self.state = ActionState.SURVIVE
             return
         if self.gather_direction is None:
-            self.state = ActionState.COLLECT           # pas de leader : forager set + stock
+            self.state = ActionState.COLLECT
             return
         if self.gather_direction == 0:
-            self.state = ActionState.WAIT_TILE          # déjà sur la case du leader
+            self.state = ActionState.WAIT_TILE
             return
         fed = inventory.food >= FOOD_GO
         ready = self.phase == TAG_GATHER or self.has_my_share(inventory)
@@ -236,7 +250,11 @@ class Strategy:
             lvl, rank = int(lvl_s), int(rank_s)
         except ValueError:
             return
-        if lvl != self.level or rank == self.idx:
+        if rank == self.idx:
+            return
+        self.roster_seen[rank] = self.cycle
+        self.roster_levels[rank] = lvl
+        if lvl != self.level:
             return
 
         if tag == TAG_PING:
@@ -287,7 +305,8 @@ class Strategy:
             return False
         if self.needed_players() == 1:
             return False
-        if self.team_size() >= self.needed_players():
+        cap = DEADLOCK_POP_CAP if self.is_deadlocked() else POP_TARGET
+        if self.total_team_size() >= cap:
             return False
         if self.cycle - self.last_fork_cycle < FORK_COOLDOWN:
             return False
@@ -305,7 +324,7 @@ class Strategy:
         self.phase = TAG_FORAGE
         self.incant_cooldown = 0
         self.level_age = 0
-        self.total_forks = 0          # budget de pontes neuf à chaque palier
+        self.total_forks = 0
         self.peer_seen.clear()
         self.state = ActionState.COLLECT
 
@@ -332,8 +351,6 @@ class Strategy:
         mode regroupement pour tenir l'attente du rituel, plus modeste en solo)."""
         if inventory.food <= FOOD_HUNGRY:
             return 'food'
-        # En regroupement (>= 2 joueurs) je ne forage que MA part (split par rang) ;
-        # en solo je vise le set complet (juste le linemate au niveau 1).
         if self.needed_players() > 1:
             missing = self.missing_share(inventory)
         else:
