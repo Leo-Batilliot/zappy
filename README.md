@@ -1,5 +1,8 @@
 # Zappy
 
+![Demo](docs/demo.gif)
+
+
 Zappy est un jeu en réseau dans lequel plusieurs équipes d'IA évoluent sur une
 planète torique, **Trantor**. Chaque équipe pilote des robots qui collectent des
 ressources, communiquent et réalisent des rituels d'**élévation** pour monter en
